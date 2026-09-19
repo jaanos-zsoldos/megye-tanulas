@@ -1,23 +1,19 @@
 // Fits the map box and the megye/megyeszekhely tray to the visible
-// viewport by computing EXACT PIXEL sizes in JavaScript and applying them
-// as inline styles - not by negotiating competing CSS constraints
-// (aspect-ratio vs max-width vs max-height vs flex-basis), which is what
-// repeatedly caused the map to disappear or its content to letterbox/drift
-// away from the pill-placement math in earlier CSS-only attempts.
+// viewport by computing EXACT PIXEL sizes for the map in JavaScript and
+// applying them as inline styles.
 //
-// The rule is simple and numerically exact:
-//   mapWidth / mapHeight === 1000 / 613   (ALWAYS, by construction)
-// There is no scenario where the browser has to resolve a conflict between
-// width and height, because we only ever set ONE pair of exact pixel
-// values that already satisfies the ratio.
+// Measurement strategy: rather than manually computing "available space"
+// from sibling widths/gaps (fragile - easy to miscount margins, gaps, or
+// box-sizing), this temporarily lets #mapWrap grow to fill whatever space
+// flexbox actually gives it (flex-grow: 1), reads that REAL rendered size
+// directly via getBoundingClientRect(), then fits the largest 1000:613 box
+// inside that real space and fixes it with exact pixel width/height. This
+// is self-correcting regardless of gaps, padding, or tray sizing details,
+// since it asks the browser directly instead of recomputing its math.
 (() => {
   const VIEW_BOX_W = 1000;
   const VIEW_BOX_H = 613;
   const RATIO = VIEW_BOX_W / VIEW_BOX_H;
-
-  function isRowLayout() {
-    return window.matchMedia('(min-width: 1000px) and (min-aspect-ratio: 1/1)').matches;
-  }
 
   function publishHeaderHeight() {
     const header = document.querySelector('.site-header');
@@ -29,41 +25,40 @@
   function fitMapToViewport() {
     const gameScreen = document.getElementById('gameScreen');
     const mapWrap = document.getElementById('mapWrap');
-    const gameLayout = document.querySelector('.game-layout');
-    const tray = document.querySelector('.tray');
-    if (!gameScreen || gameScreen.hidden || !mapWrap || !gameLayout) return;
+    if (!gameScreen || gameScreen.hidden || !mapWrap) return;
 
     gameScreen.style.removeProperty('height');
-    mapWrap.style.removeProperty('width');
-    mapWrap.style.removeProperty('height');
     publishHeaderHeight();
 
+    // Step 1: let the box grow to fill whatever space flexbox actually
+    // gives it, with no fixed size yet, so we can measure the TRUE
+    // available area directly rather than recompute it from siblings.
+    mapWrap.style.width = '';
+    mapWrap.style.height = '';
+    mapWrap.style.flex = '1 1 auto';
+    mapWrap.style.alignSelf = 'stretch';
+
     requestAnimationFrame(() => {
-      const row = isRowLayout();
-      const layoutRect = gameLayout.getBoundingClientRect();
-      const trayWidth = row && tray ? tray.getBoundingClientRect().width : 0;
-      const gap = row ? 12 : 8;
+      const rect = mapWrap.getBoundingClientRect();
+      const availableWidth = rect.width;
+      const availableHeight = rect.height;
 
-      let availableWidth = row
-        ? Math.max(0, layoutRect.width - trayWidth - gap)
-        : layoutRect.width;
-      let availableHeight = row
-        ? layoutRect.height
-        : Math.max(0, layoutRect.height * 0.56);
+      if (availableWidth > 0 && availableHeight > 0) {
+        // Step 2: fit the largest 1000:613 box inside that real space.
+        let width = availableWidth;
+        let height = width / RATIO;
+        if (height > availableHeight) {
+          height = availableHeight;
+          width = height * RATIO;
+        }
 
-      if (availableWidth <= 0 || availableHeight <= 0) return;
-
-      // Pick the largest box that fits within BOTH available dimensions
-      // while keeping the exact 1000:613 ratio.
-      let width = availableWidth;
-      let height = width / RATIO;
-      if (height > availableHeight) {
-        height = availableHeight;
-        width = height * RATIO;
+        // Step 3: lock in the exact pixel box and stop growing/stretching,
+        // so pill placement math (percent of 1000x613) is always correct.
+        mapWrap.style.flex = '0 0 auto';
+        mapWrap.style.alignSelf = 'auto';
+        mapWrap.style.width = `${Math.round(width)}px`;
+        mapWrap.style.height = `${Math.round(height)}px`;
       }
-
-      mapWrap.style.width = `${Math.round(width)}px`;
-      mapWrap.style.height = `${Math.round(height)}px`;
 
       const scrollable = document.scrollingElement;
       if (scrollable && scrollable.scrollHeight > scrollable.clientHeight + 1) {

@@ -16,11 +16,14 @@ function resetMapView() {
     });
   }
   if (gameScreen) gameScreen.style.removeProperty('height');
-  // Clear any inline pixel size left over from a previous fit so the next
-  // fitMapToViewport() call always recomputes from a clean baseline.
+  // Clear any inline size/flex properties left over from a previous fit so
+  // the next fitMapToViewport() call always recomputes from a clean
+  // measurement instead of an inherited stale value.
   if (mapWrap) {
     mapWrap.style.removeProperty('width');
     mapWrap.style.removeProperty('height');
+    mapWrap.style.removeProperty('flex');
+    mapWrap.style.removeProperty('align-self');
   }
   document.querySelectorAll('.zoom-control').forEach(control => { control.hidden = true; });
   window.resetZoom?.();

@@ -103,13 +103,19 @@ body { overflow: hidden; }
   50% { opacity: .05; }
 }
 
-/* CSS decides ONLY the layout direction here - never the map box's size. */
-@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
+/* CSS decides ONLY the layout direction here - never the map box's size.
+   Pure min-width breakpoint: the switch depends only on whether there is
+   enough WIDTH for map+tray side by side, not on viewport height. The
+   previous "(min-width: 1000px) and (min-aspect-ratio: 1/1)" rule tied the
+   switch to width vs. HEIGHT, so on a ~1138px-tall window the row layout
+   only activated once width also reached ~1138px, causing a jarring jump
+   directly from a cramped stacked layout to full row over a 1px change. */
+@media (min-width: 760px) {
   .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); }
   .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); align-self: stretch; }
 }
 
-@media (max-width: 999px), (max-aspect-ratio: 1/1) {
+@media (max-width: 759px) {
   #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }
   .chip.placed { max-width: 64px; font-size: clamp(.42rem, 1.6vw, .56rem); padding: .18rem .32rem; }

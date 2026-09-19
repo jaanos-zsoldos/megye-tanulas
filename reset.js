@@ -4,9 +4,9 @@ style.textContent = `
   .chip {
     font-size: clamp(.504rem, 1.68vw, .665rem);
     padding: 4.9px 8.4px;
-    color: #e6eef2;
+    color: #fff;
   }
-  .chip.locked { color: #eaf6ef; }
+  .chip.locked { color: #fff; }
 `;
 document.head.appendChild(style);
 

@@ -2,7 +2,14 @@
 html, body { height: 100%; }
 body { overflow: hidden; }
 
-#gameScreen {
+/* The `hidden` attribute must always win over the flex layout below.
+   Without this rule, the unconditional #gameScreen{display:flex} rule
+   further down had higher specificity than the [hidden] UA rule, so the
+   game screen (map, zoom controls, tray) stayed visible under the menu
+   even after JS set gameScreen.hidden = true. */
+#gameScreen[hidden] { display: none !important; }
+
+#gameScreen:not([hidden]) {
   height: calc(100dvh - var(--header-h, 4.5rem));
   min-height: 0;
   overflow: hidden;
@@ -85,7 +92,7 @@ body { overflow: hidden; }
    clearly on small screens; placement.js keeps them clear of the seat dot
    and the seat-name label at this larger size. */
 @media (max-width: 700px) {
-  #gameScreen { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
+  #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
   .game-layout { height: 100%; gap: .5rem; flex-direction: column; }
   .map-wrap { width: 100%; max-height: 58svh; flex: 0 0 auto; }
   .tray { flex: 1 1 auto; width: 100%; min-height: 0; }

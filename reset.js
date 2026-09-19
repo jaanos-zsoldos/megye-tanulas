@@ -17,7 +17,12 @@ function resetMapView() {
   const zoomReset = document.getElementById('zoomReset');
   if (zoomReset) zoomReset.hidden = true;
   document.querySelectorAll('.zoom-control').forEach(control => { control.hidden = true; });
+  window.resetZoom?.();
+  window.fitMapToViewport?.();
 }
 
 // Called when leaving a game, restarting it, or starting another game.
 window.resetMapView = resetMapView;
+document.getElementById('menuBtn')?.addEventListener('click', resetMapView, true);
+document.getElementById('restart')?.addEventListener('click', resetMapView, true);
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', resetMapView, true));

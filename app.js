@@ -171,6 +171,10 @@ function startMode(key) {
   }
   el.menuScreen.hidden = true;
   el.gameScreen.hidden = false;
+  requestAnimationFrame(() => {
+    window.fitMapToViewport?.();
+    window.resetZoom?.();
+  });
 }
 
 function showMenu() {
@@ -210,6 +214,9 @@ el.zoomLayer.addEventListener('click', event => {
     clearSelection();
   }
 });
+
+window.addEventListener('resize', () => { if (!el.gameScreen.hidden) window.fitMapToViewport?.(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { if (!el.gameScreen.hidden) window.fitMapToViewport?.(); }, 150));
 
 loadCounties().then(counties => {
   state.counties = counties;

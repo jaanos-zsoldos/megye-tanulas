@@ -12,9 +12,16 @@
 //    their own seat dot but must not cover any OTHER seat dot, nor overlap
 //    other placed pills.
 //
-// All searches stay within the county polygon when polygon data is
-// available, and always fall back to the original position if no better
-// spot is found, so nothing ever disappears off-map.
+// All searches stay within the county polygon AND within the map's visible
+// viewBox when polygon data is available, and always fall back to the
+// original position if no better spot is found, so nothing ever disappears
+// off-map.
+
+const VIEW_BOX_W = 1000;
+const VIEW_BOX_H = 613;
+// Small inward margin so a candidate can't sit exactly on the viewBox edge,
+// where it would render partially clipped.
+const VIEW_BOX_MARGIN = 4;
 
 function pointInPolygon(x, y, points) {
   let inside = false;
@@ -24,6 +31,19 @@ function pointInPolygon(x, y, points) {
     if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+// Fix (pills escaping below/beside the map): some county polygon data in
+// counties.json extends slightly past the SVG's declared 1000x613 viewBox
+// (e.g. Baranya reaches y=619). pointInPolygon() correctly treats such
+// points as "inside the county", but placeChip() in app.js converts them to
+// a percentage of the 613-tall viewBox, so a candidate beyond y=613 renders
+// with a top offset over 100% - visually placing the pill below the entire
+// map. This check rejects any candidate outside the actual visible canvas,
+// regardless of whether the raw polygon data extends further.
+function withinViewBox(x, y) {
+  return x >= VIEW_BOX_MARGIN && x <= VIEW_BOX_W - VIEW_BOX_MARGIN
+    && y >= VIEW_BOX_MARGIN && y <= VIEW_BOX_H - VIEW_BOX_MARGIN;
 }
 
 function parsePoints(pointsAttr) {
@@ -39,8 +59,9 @@ function distance(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
 
 // Search a small ring of candidate offsets around `origin`, preferring
 // vertical moves (up/down) before diagonal ones, and return the first
-// candidate that stays inside the polygon and clears every point in
-// `avoid` by at least `minDist`. Falls back to `origin` if nothing works.
+// candidate that stays inside the polygon, inside the visible viewBox, and
+// clears every point in `avoid` by at least `minDist`. Falls back to
+// `origin` if nothing works.
 function findClearSpot(origin, county, avoid, minDist, maxRadius) {
   const polygon = polygonForCounty(county);
   const steps = [8, 14, 20, 26, 32, 40, 50, 60, 75, maxRadius].filter(r => r <= maxRadius);
@@ -53,6 +74,7 @@ function findClearSpot(origin, county, avoid, minDist, maxRadius) {
   for (const radius of steps) {
     for (const [dx, dy] of directions) {
       const candidate = [origin[0] + dx * radius, origin[1] + dy * radius];
+      if (!withinViewBox(candidate[0], candidate[1])) continue;
       if (!pointInPolygon(candidate[0], candidate[1], polygon)) continue;
       if (avoid.every(point => distance(candidate, point) >= minDist)) return candidate;
     }
@@ -71,12 +93,12 @@ function resolveLabelPosition(county, minDistFromSeat = 34) {
 }
 
 // Fix 2 & 3: find a placement for a chip near `target` that stays inside
-// `county`'s polygon, respects a minimum distance from every position in
-// `avoid` (other seat dots / other placed pill centers), and is as close
-// to `target` as the search allows.
+// `county`'s polygon and the visible viewBox, respects a minimum distance
+// from every position in `avoid` (other seat dots / other placed pill
+// centers), and is as close to `target` as the search allows.
 function resolveChipPosition(target, county, avoid, minDist, maxRadius) {
   if (avoid.every(point => distance(target, point) >= minDist)) return target;
   return findClearSpot(target, county, avoid, minDist, maxRadius);
 }
 
-window.placementUtils = { pointInPolygon, parsePoints, resolveLabelPosition, resolveChipPosition, distance };
+window.placementUtils = { pointInPolygon, withinViewBox, parsePoints, resolveLabelPosition, resolveChipPosition, distance };

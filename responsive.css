@@ -23,27 +23,35 @@ body { overflow: hidden; }
   height: auto;
   min-height: 0;
   overflow: hidden;
-  align-items: stretch;
+  align-items: center;
   display: flex;
   flex-direction: column;
   gap: .5rem;
   max-width: 100%;
 }
 
-/* Default (stacked) map box: width-driven, height capped, ratio locked.
-   This is the SAFE baseline used by narrow phones AND by wide-but-tall
-   tablets (e.g. an iPad or Surface in portrait orientation, which can
-   still be >700px wide). Using width to derive height here means the box
-   can never demand more width than is available, so it cannot push the
-   pill tray out of view. */
+/* THE MAP BOX MUST ALWAYS BE WIDTH-DRIVEN, NEVER HEIGHT-DRIVEN.
+   Pill placement in app.js positions chips using left/top PERCENTAGES of
+   the SVG's 1000x613 viewBox, assuming the visible map fills .map-wrap
+   edge-to-edge at exactly that ratio. If .map-wrap's rendered box ever
+   ends up at a DIFFERENT ratio (e.g. because a height cap and a width of
+   100% both applied at once), the SVG's default preserveAspectRatio
+   letterboxes the actual map drawing inside the mismatched box, shifting
+   it away from where the percentage math expects it - this is what caused
+   pills to visually "drift" relative to county borders, by an amount that
+   changed with viewport width.
+   The fix: give the box ONLY a width (derived via min() from every limit
+   we care about - available row width, and an equivalent width for our
+   height cap) and let `aspect-ratio` derive height purely from that width.
+   There is then no competing height constraint the browser could resolve
+   by breaking the ratio. */
 .map-wrap {
   position: relative;
   overflow: hidden;
   min-width: 0;
   min-height: 0;
-  width: 100%;
-  max-height: 56svh;
   aspect-ratio: 1000 / 613;
+  width: min(100%, calc(56svh * 1000 / 613));
   flex: 0 0 auto;
 }
 
@@ -55,7 +63,7 @@ body { overflow: hidden; }
   width: 100%;
   height: 100%;
 }
-.map { width: 100%; height: 100%; }
+.map { width: 100%; height: 100%; display: block; }
 
 .tray {
   min-height: 0;
@@ -111,17 +119,17 @@ body { overflow: hidden; }
 }
 
 /* Side-by-side desktop layout requires BOTH enough width AND a landscape
-   orientation, with a wide safety margin (1000px, not just barely over the
-   290px tray + a usable map). This prevents the "in-between" sizes where the
-   fixed breakpoint used to say "still side-by-side" while there was not
-   actually enough room, which clipped/overflowed the pill tray. The tray
-   itself is now a responsive clamp() width instead of a fixed 290px, so it
-   keeps shrinking gracefully as the viewport narrows toward the breakpoint
-   instead of hitting a hard wall right at the edge. */
+   orientation, with a wide safety margin (1000px). The map box remains
+   width-driven here too: its width is capped by whatever space is left
+   after the tray and gap, using the same min()-based approach so it can
+   never be forced into a mismatched ratio by a height constraint. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); }
-  .map-wrap { flex: 1 1 auto; min-width: 0; height: 100%; max-height: none; width: auto; max-width: calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px)); }
-  .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); }
+  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); align-items: center; }
+  .map-wrap {
+    flex: 0 0 auto;
+    width: min(calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px)), calc(100% * 1000 / 613));
+  }
+  .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); align-self: stretch; }
 }
 
 /* Narrower phones get smaller text/pills and a shorter map cap; this also
@@ -129,7 +137,7 @@ body { overflow: hidden; }
    side-by-side threshold. */
 @media (max-width: 999px), (max-aspect-ratio: 1/1) {
   #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
-  .map-wrap { max-height: 50svh; }
+  .map-wrap { width: min(100%, calc(50svh * 1000 / 613)); }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }
   .chip.placed { max-width: 64px; font-size: clamp(.42rem, 1.6vw, .56rem); padding: .18rem .32rem; }
   .county-label { font-size: 14px; }
@@ -139,7 +147,7 @@ body { overflow: hidden; }
 /* Extra headroom on genuinely small phone widths, where both the map and
    the tray need to shrink further to both stay visible without scrolling. */
 @media (max-width: 480px) {
-  .map-wrap { max-height: 42svh; }
+  .map-wrap { width: min(100%, calc(42svh * 1000 / 613)); }
   .chip { font-size: clamp(.5rem, 1.8vw, .64rem); padding: .26rem .42rem; }
 }
 

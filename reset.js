@@ -1,19 +1,47 @@
 const style = document.createElement('style');
 style.textContent = `
-  /* Keep the complete game workspace inside the initial viewport. */
+  /* Fit the complete game workspace into the browser viewport on desktop too. */
   html, body { height: 100%; }
   body { overflow: hidden; }
-  #gameScreen { height: calc(100svh - 4.5rem); overflow: hidden; }
-  .game-layout { height: calc(100% - 3rem); min-height: 0; }
-  .map-wrap { width: min(100%, calc(100svh - 10rem) * 1.6313); height: 100%; aspect-ratio: 1000 / 613; min-height: 0; }
+  #gameScreen {
+    height: calc(100dvh - 4.5rem);
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #gameScreen .instructions { flex: 0 0 auto; }
+  .game-layout {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+    align-items: center;
+  }
+  .map-wrap {
+    width: min(100%, calc((100dvh - 12.5rem) * 1.6313));
+    height: min(100%, calc(100dvh - 12.5rem));
+    aspect-ratio: 1000 / 613;
+    min-width: 0;
+    min-height: 0;
+  }
   .zoom-layer, .map { width: 100%; height: 100%; }
   .tray { min-height: 0; max-height: 100%; overflow: auto; }
 
   /* On narrow screens, reserve space for both the whole map and the pill tray. */
   @media (max-width: 700px) {
-    #gameScreen { height: calc(100svh - 8rem); }
-    .game-layout { height: 100%; gap: .5rem; }
-    .map-wrap { width: 100%; height: min(56svh, calc(100vw * .613)); flex: 0 0 auto; }
+    #gameScreen { height: calc(100dvh - 8rem); }
+    .game-layout {
+      height: auto;
+      gap: .5rem;
+      overflow: hidden;
+      align-items: stretch;
+    }
+    .map-wrap {
+      width: 100%;
+      height: min(56dvh, calc(100vw * .613));
+      flex: 0 0 auto;
+    }
     .tray { flex: 1 1 auto; width: 100%; overflow: auto; }
   }
 
@@ -59,8 +87,6 @@ function stackBudapestAndPest(budapest, pest) {
   const bounds = layer.getBoundingClientRect();
   const budapestRect = budapest.getBoundingClientRect();
   const pestRect = pest.getBoundingClientRect();
-
-  // Keep Pest directly below Budapest instead of pushing it into a neighbouring county.
   const dx = budapestRect.left + (budapestRect.width - pestRect.width) / 2 - pestRect.left;
   const gap = 4;
   const spaceBelow = bounds.bottom - budapestRect.bottom;

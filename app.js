@@ -211,7 +211,11 @@ function startMode(key) {
   } else {
     state.counties.forEach(county => {
       region(county.id)?.classList.add('fixed');
-      if (mode.showLabels) {
+      // Budapest has no county seat of its own (it is the capital, not a
+      // county-seat pair), so its name label is skipped here: showing it
+      // added visual clutter right next to Pest without teaching anything
+      // relevant to the seat-learning task.
+      if (mode.showLabels && county.id !== 'Budapest') {
         const labelAt = window.placementUtils
           ? window.placementUtils.resolveLabelPosition(county)
           : county.labelPos;

@@ -43,7 +43,7 @@ function distance(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
 // `avoid` by at least `minDist`. Falls back to `origin` if nothing works.
 function findClearSpot(origin, county, avoid, minDist, maxRadius) {
   const polygon = polygonForCounty(county);
-  const steps = [8, 14, 20, 26, 32, 40, maxRadius].filter(r => r <= maxRadius);
+  const steps = [8, 14, 20, 26, 32, 40, 50, 60, 75, maxRadius].filter(r => r <= maxRadius);
   const directions = [
     [0, -1], [0, 1],          // up, down (preferred: keeps horizontal reading position)
     [-0.6, -0.8], [0.6, -0.8], // slight diagonal up
@@ -61,11 +61,13 @@ function findClearSpot(origin, county, avoid, minDist, maxRadius) {
 }
 
 // Fix 1: keep a static seat-easy county-name label away from its own
-// county's seat dot while staying inside the county polygon.
-function resolveLabelPosition(county, minDistFromSeat = 20) {
+// county's seat dot while staying inside the county polygon. The default
+// clearance accounts for the larger 14px mobile label size, so the search
+// still finds a spot that keeps the full label clear, not just its center.
+function resolveLabelPosition(county, minDistFromSeat = 34) {
   if (!county.seatPos) return county.labelPos;
   if (distance(county.labelPos, county.seatPos) >= minDistFromSeat) return county.labelPos;
-  return findClearSpot(county.labelPos, county, [county.seatPos], minDistFromSeat, 60);
+  return findClearSpot(county.labelPos, county, [county.seatPos], minDistFromSeat, 90);
 }
 
 // Fix 2 & 3: find a placement for a chip near `target` that stays inside

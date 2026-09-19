@@ -81,6 +81,9 @@ body { overflow: hidden; }
   .tray { flex: 0 0 290px; max-height: 100%; }
 }
 
+/* County-name labels are doubled in size on mobile (was 7px) so they read
+   clearly on small screens; placement.js keeps them clear of the seat dot
+   and the seat-name label at this larger size. */
 @media (max-width: 700px) {
   #gameScreen { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
   .game-layout { height: 100%; gap: .5rem; flex-direction: column; }
@@ -88,7 +91,7 @@ body { overflow: hidden; }
   .tray { flex: 1 1 auto; width: 100%; min-height: 0; }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }
   .chip.placed { max-width: 64px; font-size: clamp(.42rem, 1.6vw, .56rem); padding: .18rem .32rem; }
-  .county-label { font-size: 7px; }
+  .county-label { font-size: 14px; }
   .zoom-controls { right: .35rem; bottom: .35rem; }
 }
 

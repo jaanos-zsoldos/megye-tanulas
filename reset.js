@@ -132,7 +132,37 @@ function separatePlacedChips() {
   }
 }
 
-const chipObserver = new MutationObserver(() => requestAnimationFrame(separatePlacedChips));
+// Keep the SVG visible even if a stale cached stylesheet contains a transparent
+// map rule. These inline values are deliberately applied after every redraw.
+function restoreMapAppearance() {
+  const map = document.getElementById('map');
+  if (!map) return;
+  map.style.display = 'block';
+  map.style.visibility = 'visible';
+  map.querySelectorAll('polygon').forEach(polygon => {
+    polygon.style.fill = polygon.classList.contains('fixed') ? '#2f8f68' : '#294354';
+    polygon.style.stroke = '#8fa9b8';
+    polygon.style.strokeWidth = '1.5';
+    polygon.style.visibility = 'visible';
+  });
+  map.querySelectorAll('circle').forEach(circle => {
+    circle.style.fill = '#eb6557';
+    circle.style.stroke = '#f2f6f8';
+    circle.style.visibility = 'visible';
+  });
+}
+
+const chipObserver = new MutationObserver(() => {
+  restoreMapAppearance();
+  requestAnimationFrame(separatePlacedChips);
+});
 chipObserver.observe(document.getElementById('zoomLayer'), { childList: true, subtree: true });
-window.addEventListener('resize', () => requestAnimationFrame(separatePlacedChips));
-window.addEventListener('orientationchange', () => setTimeout(separatePlacedChips, 100));
+restoreMapAppearance();
+window.addEventListener('resize', () => {
+  restoreMapAppearance();
+  requestAnimationFrame(separatePlacedChips);
+});
+window.addEventListener('orientationchange', () => setTimeout(() => {
+  restoreMapAppearance();
+  separatePlacedChips();
+}, 100));

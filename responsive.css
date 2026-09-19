@@ -99,3 +99,7 @@ body { overflow: hidden; }
   .zoom-layer { transition: none; }
   .region.wrong, .seat-dot.wrong { animation: none; }
 }
+
+/* Final score ("Végső Pontszám") celebration dialog polish. */
+.dialog h2 { font-size: clamp(1.2rem, 4vw, 1.6rem); line-height: 1.3; }
+.dialog p { font-size: clamp(.9rem, 2.6vw, 1.05rem); line-height: 1.5; color: var(--muted); }

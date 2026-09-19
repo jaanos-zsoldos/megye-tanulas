@@ -5,11 +5,17 @@ const V_W = 1000;
 const V_H = 613;
 const MODES = {
   'county-easy': { group: 'county', check: false, title: 'Megye tanulás – könnyített', badge: 'Megye · könnyített', text: 'Válassz ki egy megyét a listából, majd kattints a térképen a hozzá tartozó területre.' },
-  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el az összes megyenevet a térképen, majd az "Ellenőrzés" gombbal nézd meg, hány jó választ adtál.' },
+  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el az összes megyenevet a térképen, majd az "Ellenőrzés" gombbal nézd meg, hány jó választ adtál. Minden ellenőrzés pontot von le, kivéve az utolsót, ha már minden helyes.' },
   'seat-easy': { group: 'seat', check: false, showLabels: true, title: 'Megyeszékhely tanulás – könnyített', badge: 'Székhely · könnyített', text: 'A megyék nevei most láthatók a térképen. Válassz egy megyeszékhelyet, majd kattints a hozzá tartozó pontra.' },
   'seat-medium': { group: 'seat', check: false, showLabels: false, title: 'Megyeszékhely tanulás – nehezített', badge: 'Székhely · nehezített', text: 'A megyék nevei most nem látszanak. Válassz egy megyeszékhelyet, majd kattints a térképen a megfelelő pontra.' },
-  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'A megyék nevei nem látszanak. Helyezd el az összes megyeszékhelyet, majd az "Ellenőrzés" gombbal ellenőrizd egyszerre a válaszaidat.' }
+  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'A megyék nevei nem látszanak. Helyezd el az összes megyeszékhelyet, majd az "Ellenőrzés" gombbal ellenőrizd egyszerre a válaszaidat. Minden ellenőrzés pontot von le, kivéve az utolsót, ha már minden helyes.' }
 };
+
+// Flat point cost for running a check while at least one placement is still
+// wrong. This rewards placing larger, more confident batches before
+// checking: fewer checks means fewer penalties. The check that completes
+// the round (everything already correct) is always free.
+const CHECK_PENALTY = 10;
 
 const el = Object.fromEntries([...document.querySelectorAll('[id]')].map(node => [node.id, node]));
 const state = { counties: [], mode: null, score: 0, selected: null, placements: new Set() };
@@ -107,7 +113,17 @@ function addChip(text, id) {
   el.trayItems.appendChild(chip);
 }
 
+// Fix (stacking): before placing a new tentative chip on a target, evict any
+// OTHER not-yet-locked chip that is already pending on that same target, so
+// two pills can never sit stacked on top of each other in check mode.
+function evictPendingAt(targetId, excludeChip) {
+  const existing = [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')]
+    .find(chip => chip !== excludeChip && chip.pending === targetId);
+  if (existing) returnToTray(existing);
+}
+
 function placeTentative(chip, position, pending) {
+  evictPendingAt(pending, chip);
   chip.classList.remove('selected');
   chip.classList.add('placed');
   el.zoomLayer.appendChild(chip);
@@ -188,7 +204,32 @@ function allCorrect() {
     : state.counties.filter(county => county.seat).every(county => state.placements.has(county.seat));
 }
 
-function complete() { if (allCorrect()) setTimeout(showMenu, 250); }
+// Enhancement (final score screen): once every item is placed correctly,
+// show an encouraging "Végső Pontszám" dialog with the earned score instead
+// of silently returning to the menu.
+const CELEBRATIONS = [
+  { min: 0, emoji: '🌱', text: 'Szép munka, ez egy jó kezdet! Gyakorolj tovább, és egyre magasabb pontszámot érhetsz el.' },
+  { min: 100, emoji: '👍', text: 'Ügyes vagy! Egyre jobban ismered Magyarország térképét.' },
+  { min: 180, emoji: '🎉', text: 'Kiváló eredmény! Már igazi térképmester vagy.' },
+  { min: 250, emoji: '🏆', text: 'Fantasztikus! Ez egy kimagasló, hibátlanhoz közeli teljesítmény.' }
+];
+
+function celebrationFor(score) {
+  return [...CELEBRATIONS].reverse().find(item => score >= item.min) || CELEBRATIONS[0];
+}
+
+function showFinalScore() {
+  const { emoji, text } = celebrationFor(state.score);
+  el.dialogTitle.textContent = `${emoji} Végső Pontszám: ${state.score} pont`;
+  el.dialogText.textContent = text;
+  el.overlay.classList.add('show');
+  el.next.onclick = () => {
+    el.overlay.classList.remove('show');
+    showMenu();
+  };
+}
+
+function complete() { if (allCorrect()) setTimeout(showFinalScore, 250); }
 
 function startMode(key) {
   const mode = MODES[key];
@@ -211,10 +252,6 @@ function startMode(key) {
   } else {
     state.counties.forEach(county => {
       region(county.id)?.classList.add('fixed');
-      // Budapest has no county seat of its own (it is the capital, not a
-      // county-seat pair), so its name label is skipped here: showing it
-      // added visual clutter right next to Pest without teaching anything
-      // relevant to the seat-learning task.
       if (mode.showLabels && county.id !== 'Budapest') {
         const labelAt = window.placementUtils
           ? window.placementUtils.resolveLabelPosition(county)
@@ -269,6 +306,16 @@ el.check.addEventListener('click', () => {
       anyWrong = true;
     }
   });
+
+  // Enhancement (check-cost point system): checking costs a flat penalty
+  // whenever at least one placement was still wrong. The check that finds
+  // everything correct and completes the round is always free, rewarding
+  // players who place larger, more confident batches before checking.
+  const finished = allCorrect();
+  if (anyWrong && !finished) {
+    state.score = Math.max(0, state.score - CHECK_PENALTY);
+  }
+
   if (anyCorrect) playTone('correct');
   else if (anyWrong) playTone('wrong');
   updateScore();

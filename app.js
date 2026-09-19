@@ -11,10 +11,6 @@ const MODES = {
   'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'A megyék nevei nem látszanak. Helyezd el az összes megyeszékhelyet, majd az "Ellenőrzés" gombbal ellenőrizd egyszerre a válaszaidat. Minden ellenőrzés pontot von le, kivéve az utolsót, ha már minden helyes.' }
 };
 
-// Flat point cost for running a check while at least one placement is still
-// wrong. This rewards placing larger, more confident batches before
-// checking: fewer checks means fewer penalties. The check that completes
-// the round (everything already correct) is always free.
 const CHECK_PENALTY = 10;
 
 const el = Object.fromEntries([...document.querySelectorAll('[id]')].map(node => [node.id, node]));
@@ -113,9 +109,6 @@ function addChip(text, id) {
   el.trayItems.appendChild(chip);
 }
 
-// Fix (stacking): before placing a new tentative chip on a target, evict any
-// OTHER not-yet-locked chip that is already pending on that same target, so
-// two pills can never sit stacked on top of each other in check mode.
 function evictPendingAt(targetId, excludeChip) {
   const existing = [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')]
     .find(chip => chip !== excludeChip && chip.pending === targetId);
@@ -204,9 +197,6 @@ function allCorrect() {
     : state.counties.filter(county => county.seat).every(county => state.placements.has(county.seat));
 }
 
-// Enhancement (final score screen): once every item is placed correctly,
-// show an encouraging "Végső Pontszám" dialog with the earned score instead
-// of silently returning to the menu.
 const CELEBRATIONS = [
   { min: 0, emoji: '🌱', text: 'Szép munka, ez egy jó kezdet! Gyakorolj tovább, és egyre magasabb pontszámot érhetsz el.' },
   { min: 100, emoji: '👍', text: 'Ügyes vagy! Egyre jobban ismered Magyarország térképét.' },
@@ -276,8 +266,12 @@ function startMode(key) {
     });
     state.counties.filter(county => county.seat).sort((a, b) => a.seat.localeCompare(b.seat, 'hu')).forEach(county => addChip(county.seat, county.seat));
   }
+
   el.menuScreen.hidden = true;
   el.gameScreen.hidden = false;
+  el.gameScreen.removeAttribute('aria-hidden');
+  el.restart.hidden = false;
+
   requestAnimationFrame(() => {
     window.fitMapToViewport?.();
     window.resetZoom?.();
@@ -286,10 +280,23 @@ function startMode(key) {
 
 function showMenu() {
   clearSelection();
+  state.mode = null;
+  state.placements = new Set();
   el.overlay.classList.remove('show');
+
+  el.instructions.replaceChildren();
+  el.trayItems.replaceChildren();
+  el.zoomLayer.querySelectorAll('.chip').forEach(chip => chip.remove());
+  el.map.replaceChildren();
+  el.check.hidden = true;
+
   el.gameScreen.hidden = true;
+  el.gameScreen.setAttribute('aria-hidden', 'true');
   el.menuScreen.hidden = false;
+  el.restart.hidden = true;
   el.badge.textContent = '';
+
+  window.resetMapView?.();
 }
 
 el.check.addEventListener('click', () => {
@@ -307,10 +314,6 @@ el.check.addEventListener('click', () => {
     }
   });
 
-  // Enhancement (check-cost point system): checking costs a flat penalty
-  // whenever at least one placement was still wrong. The check that finds
-  // everything correct and completes the round is always free, rewarding
-  // players who place larger, more confident batches before checking.
   const finished = allCorrect();
   if (anyWrong && !finished) {
     state.score = Math.max(0, state.score - CHECK_PENALTY);
@@ -323,7 +326,7 @@ el.check.addEventListener('click', () => {
 });
 
 el.menuBtn.addEventListener('click', showMenu);
-el.restart.addEventListener('click', () => state.mode && startMode(state.mode));
+el.restart.addEventListener('click', () => { if (state.mode) startMode(state.mode); });
 
 el.menuScreen.addEventListener('click', event => {
   const button = event.target.closest('[data-mode]');

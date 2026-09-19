@@ -3,51 +3,23 @@ style.textContent = `
   html, body { height: 100%; }
   body { overflow: hidden; }
 
-  /* Desktop-only viewport fitting. Keep the mobile layout independent: it was
-     already sized correctly before the desktop no-scroll change. */
   @media (min-width: 701px) {
-    #gameScreen {
-      height: calc(100dvh - 4.5rem);
-      min-height: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
+    #gameScreen { height: calc(100dvh - 4.5rem); min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
     #gameScreen .instructions { flex: 0 0 auto; }
-    .game-layout {
-      flex: 1 1 auto;
-      height: auto;
-      min-height: 0;
-      overflow: hidden;
-      align-items: center;
-    }
-    .map-wrap {
-      width: min(100%, calc((100dvh - 12.5rem) * 1.6313));
-      height: min(100%, calc(100dvh - 12.5rem));
-      aspect-ratio: 1000 / 613;
-      min-width: 0;
-      min-height: 0;
-    }
+    .game-layout { flex: 1 1 auto; height: auto; min-height: 0; overflow: hidden; align-items: center; }
+    .map-wrap { width: min(100%, calc((100dvh - 12.5rem) * 1.6313)); height: min(100%, calc(100dvh - 12.5rem)); aspect-ratio: 1000 / 613; min-width: 0; min-height: 0; }
     .zoom-layer, .map { width: 100%; height: 100%; }
     .tray { min-height: 0; max-height: 100%; overflow: auto; }
   }
 
-  /* Preserve the mobile layout that worked before desktop viewport fitting was
-     introduced. Mobile browsers can change dynamic viewport units while the
-     address bar expands, so use the stable small viewport here. */
   @media (max-width: 700px) {
     #gameScreen { height: calc(100svh - 8rem); }
     .game-layout { height: 100%; gap: .5rem; }
-    .map-wrap {
-      width: 100%;
-      height: min(56svh, calc(100vw * .613));
-      flex: 0 0 auto;
-    }
+    .map-wrap { width: 100%; height: min(56svh, calc(100vw * .613)); flex: 0 0 auto; }
     .zoom-layer, .map { width: 100%; height: 100%; }
     .tray { flex: 1 1 auto; width: 100%; overflow: auto; }
   }
 
-  /* Keep map chips compact and readable over the map. */
   .chip { font-size: clamp(.504rem, 1.68vw, .665rem); padding: 4.9px 8.4px; color: #fff; }
   .chip.locked { color: #fff; }
 `;
@@ -80,8 +52,7 @@ function moveChip(chip, dx, dy) {
 function overlaps(a, b) {
   const first = a.getBoundingClientRect();
   const second = b.getBoundingClientRect();
-  return first.left < second.right && first.right > second.left
-    && first.top < second.bottom && first.bottom > second.top;
+  return first.left < second.right && first.right > second.left && first.top < second.bottom && first.bottom > second.top;
 }
 
 function stackBudapestAndPest(budapest, pest) {
@@ -92,15 +63,12 @@ function stackBudapestAndPest(budapest, pest) {
   const dx = budapestRect.left + (budapestRect.width - pestRect.width) / 2 - pestRect.left;
   const gap = 4;
   const spaceBelow = bounds.bottom - budapestRect.bottom;
-  const dy = spaceBelow >= pestRect.height + gap
-    ? budapestRect.bottom + gap - pestRect.top
-    : budapestRect.top - gap - pestRect.bottom;
+  const dy = spaceBelow >= pestRect.height + gap ? budapestRect.bottom + gap - pestRect.top : budapestRect.top - gap - pestRect.bottom;
   moveChip(pest, dx, dy);
 }
 
 function separatePlacedChips() {
   const chips = [...document.querySelectorAll('#zoomLayer .chip.placed')];
-  // Resolve only small local collisions, so labels stay next to their county/town.
   for (let pass = 0; pass < 3; pass += 1) {
     let changed = false;
     for (let i = 0; i < chips.length; i += 1) {
@@ -112,57 +80,50 @@ function separatePlacedChips() {
         const b = second.getBoundingClientRect();
         const horizontal = Math.min(a.right - b.left, b.right - a.left);
         const vertical = Math.min(a.bottom - b.top, b.bottom - a.top);
-        if (horizontal <= vertical) {
-          moveChip(second, b.left < a.left ? -horizontal - 4 : horizontal + 4, 0);
-        } else {
-          moveChip(second, 0, b.top < a.top ? -vertical - 4 : vertical + 4);
-        }
+        if (horizontal <= vertical) moveChip(second, b.left < a.left ? -horizontal - 4 : horizontal + 4, 0);
+        else moveChip(second, 0, b.top < a.top ? -vertical - 4 : vertical + 4);
         changed = true;
       }
     }
     if (!changed) break;
   }
-
-  // Budapest and Pest are especially close; stack them vertically to avoid
-  // moving Pest across the neighbouring county on the right.
   const budapest = chips.find(chip => chipText(chip) === 'budapest');
   const pest = chips.find(chip => chipText(chip) === 'pest');
-  if (budapest && pest && overlaps(budapest, pest)) {
-    stackBudapestAndPest(budapest, pest);
-  }
+  if (budapest && pest && overlaps(budapest, pest)) stackBudapestAndPest(budapest, pest);
 }
 
-// Keep the SVG visible even if a stale cached stylesheet contains a transparent
-// map rule. These inline values are deliberately applied after every redraw.
+// Match the original hardcoded renderer's visible SVG defaults. Use !important
+// so a cached stylesheet cannot hide the polygons after data-driven redraws.
 function restoreMapAppearance() {
   const map = document.getElementById('map');
   if (!map) return;
-  map.style.display = 'block';
-  map.style.visibility = 'visible';
+  map.style.setProperty('display', 'block', 'important');
+  map.style.setProperty('visibility', 'visible', 'important');
+  map.style.setProperty('opacity', '1', 'important');
   map.querySelectorAll('polygon').forEach(polygon => {
-    polygon.style.fill = polygon.classList.contains('fixed') ? '#2f8f68' : '#294354';
-    polygon.style.stroke = '#8fa9b8';
-    polygon.style.strokeWidth = '1.5';
-    polygon.style.visibility = 'visible';
+    polygon.style.setProperty('display', 'inline', 'important');
+    polygon.style.setProperty('fill', polygon.classList.contains('fixed') ? '#2f8f68' : '#294354', 'important');
+    polygon.style.setProperty('stroke', '#8fa9b8', 'important');
+    polygon.style.setProperty('stroke-width', '1.5', 'important');
+    polygon.style.setProperty('visibility', 'visible', 'important');
+    polygon.style.setProperty('opacity', '1', 'important');
   });
   map.querySelectorAll('circle').forEach(circle => {
-    circle.style.fill = '#eb6557';
-    circle.style.stroke = '#f2f6f8';
-    circle.style.visibility = 'visible';
+    circle.style.setProperty('display', 'inline', 'important');
+    circle.style.setProperty('fill', '#eb6557', 'important');
+    circle.style.setProperty('stroke', '#f2f6f8', 'important');
+    circle.style.setProperty('visibility', 'visible', 'important');
+    circle.style.setProperty('opacity', '1', 'important');
   });
 }
 
+const zoomLayer = document.getElementById('zoomLayer');
 const chipObserver = new MutationObserver(() => {
   restoreMapAppearance();
   requestAnimationFrame(separatePlacedChips);
 });
-chipObserver.observe(document.getElementById('zoomLayer'), { childList: true, subtree: true });
+if (zoomLayer) chipObserver.observe(zoomLayer, { childList: true, subtree: true });
 restoreMapAppearance();
-window.addEventListener('resize', () => {
-  restoreMapAppearance();
-  requestAnimationFrame(separatePlacedChips);
-});
-window.addEventListener('orientationchange', () => setTimeout(() => {
-  restoreMapAppearance();
-  separatePlacedChips();
-}, 100));
+window.addEventListener('load', restoreMapAppearance);
+window.addEventListener('resize', () => { restoreMapAppearance(); requestAnimationFrame(separatePlacedChips); });
+window.addEventListener('orientationchange', () => setTimeout(() => { restoreMapAppearance(); separatePlacedChips(); }, 100));

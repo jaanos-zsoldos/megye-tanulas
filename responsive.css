@@ -30,20 +30,21 @@ body { overflow: hidden; }
   max-width: 100%;
 }
 
-/* THE MAP BOX MUST ALWAYS BE WIDTH-DRIVEN, NEVER HEIGHT-DRIVEN.
-   Pill placement in app.js positions chips using left/top PERCENTAGES of
-   the SVG's 1000x613 viewBox, assuming the visible map fills .map-wrap
-   edge-to-edge at exactly that ratio. If .map-wrap's rendered box ever
-   ends up at a DIFFERENT ratio, the SVG's default preserveAspectRatio
-   letterboxes the actual map drawing inside the mismatched box, shifting
-   it away from where the percentage math expects it.
-   The fix keeps the box width-driven using the standard, universally
-   supported `width: 100%; max-width: <cap>;` pattern (a width capped by
-   ANOTHER width value) rather than nesting a percentage and a viewport-unit
-   calc() inside min(), which some engines can fail to parse - if that
-   happens the whole `width` declaration is invalid and falls back to
-   `auto`, which combined with align-items other than `stretch` can collapse
-   the box to zero size (this exact regression is what this commit fixes). */
+/* THE MAP BOX MUST ALWAYS BE WIDTH-DRIVEN, NEVER HEIGHT-DRIVEN, IN EVERY
+   LAYOUT BRANCH (stacked AND side-by-side). Pill placement in app.js
+   positions chips using left/top PERCENTAGES of the SVG's 1000x613
+   viewBox, assuming the visible map fills .map-wrap edge-to-edge at
+   exactly that ratio. If .map-wrap's rendered box ever ends up at a
+   DIFFERENT ratio (e.g. because a flex container stretches its height
+   while a separate max-width also caps its width), the SVG's default
+   preserveAspectRatio letterboxes the actual map drawing inside the
+   mismatched box, shifting it away from where the percentage math
+   expects it - this is what caused pills to visually drift south/away
+   from their county at certain viewport sizes.
+   Using the standard `width: 100%; max-width: <cap>;` pattern (never
+   mixing in an independent height/stretch constraint) guarantees the
+   browser never needs to break the 1000:613 ratio to satisfy a competing
+   dimension, in EITHER layout branch. */
 .map-wrap {
   position: relative;
   overflow: hidden;
@@ -119,22 +120,23 @@ body { overflow: hidden; }
 }
 
 /* Side-by-side desktop layout requires BOTH enough width AND a landscape
-   orientation, with a wide safety margin (1000px). The map box remains
-   width-driven here too: capped by whatever space is left after the tray
-   and gap. Both arguments of this min() are percentages of the same type,
-   which is universally well supported (unlike mixing % with a viewport-unit
-   calc(), which caused the map to disappear in the previous commit). */
+   orientation, with a wide safety margin (1000px). CRITICAL: this branch
+   previously used `align-items: stretch` (inherited from .game-layout),
+   which stretches .map-wrap's HEIGHT along the row's cross-axis while a
+   separate max-width also capped its WIDTH - the same ratio-breaking
+   conflict fixed in the stacked layout, just re-introduced here. This
+   branch now explicitly overrides to `align-items: center` so .map-wrap
+   is never height-stretched; its box comes ONLY from max-width (a plain
+   width cap - safe, unlike the earlier min()/calc() unit-mixing bug) with
+   height purely derived via aspect-ratio, then centered in the row. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); align-items: stretch; }
+  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); align-items: center; }
   .map-wrap {
-    flex: 1 1 auto;
-    min-width: 0;
-    width: auto;
+    flex: 0 0 auto;
+    width: 100%;
     max-width: calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px));
-    height: auto;
-    max-height: 100%;
   }
-  .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); }
+  .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); align-self: stretch; }
 }
 
 /* Narrower phones get smaller text/pills and a shorter map cap; this also

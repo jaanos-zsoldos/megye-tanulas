@@ -22,6 +22,18 @@ style.textContent = `
 
   .chip { font-size: clamp(.504rem, 1.68vw, .665rem); padding: 4.9px 8.4px; color: #fff; }
   .chip.locked { color: #fff; }
+
+  /* Immediate feedback for wrong map selections. */
+  .region.wrong { animation: wrong-region-flash .35s ease-in-out; }
+  .seat-dot.wrong { animation: wrong-seat-blink .35s ease-in-out 2; }
+  @keyframes wrong-region-flash {
+    0%, 100% { fill: #294354; }
+    35%, 70% { fill: #c94747; }
+  }
+  @keyframes wrong-seat-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .05; }
+  }
 `;
 document.head.appendChild(style);
 
@@ -32,6 +44,38 @@ function clearMapChips() {
 document.getElementById('menuBtn').addEventListener('click', clearMapChips, true);
 document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', clearMapChips, true));
 document.getElementById('restart').addEventListener('click', clearMapChips, true);
+
+let feedbackAudio;
+function audioContext() {
+  if (!feedbackAudio) feedbackAudio = new (window.AudioContext || window.webkitAudioContext)();
+  if (feedbackAudio.state === 'suspended') feedbackAudio.resume();
+  return feedbackAudio;
+}
+function playAnswerSound(kind) {
+  try {
+    const context = audioContext();
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = kind === 'good' ? 'sine' : 'sawtooth';
+    if (kind === 'good') {
+      oscillator.frequency.setValueAtTime(523.25, now);
+      oscillator.frequency.exponentialRampToValueAtTime(783.99, now + .12);
+    } else {
+      oscillator.frequency.setValueAtTime(180, now);
+      oscillator.frequency.exponentialRampToValueAtTime(90, now + .16);
+    }
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.12, now + .01);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'good' ? .16 : .2));
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + (kind === 'good' ? .17 : .21));
+  } catch {
+    // Audio is optional and may be unavailable or blocked.
+  }
+}
+window.playAnswerSound = playAnswerSound;
 
 function chipText(chip) { return chip.textContent.trim().toLocaleLowerCase('hu-HU'); }
 
@@ -73,11 +117,9 @@ function separatePlacedChips() {
     let changed = false;
     for (let i = 0; i < chips.length; i += 1) {
       for (let j = i + 1; j < chips.length; j += 1) {
-        const first = chips[i];
-        const second = chips[j];
+        const first = chips[i]; const second = chips[j];
         if (!overlaps(first, second)) continue;
-        const a = first.getBoundingClientRect();
-        const b = second.getBoundingClientRect();
+        const a = first.getBoundingClientRect(); const b = second.getBoundingClientRect();
         const horizontal = Math.min(a.right - b.left, b.right - a.left);
         const vertical = Math.min(a.bottom - b.top, b.bottom - a.top);
         if (horizontal <= vertical) moveChip(second, b.left < a.left ? -horizontal - 4 : horizontal + 4, 0);
@@ -92,8 +134,6 @@ function separatePlacedChips() {
   if (budapest && pest && overlaps(budapest, pest)) stackBudapestAndPest(budapest, pest);
 }
 
-// Match the original hardcoded renderer's visible SVG defaults. Use !important
-// so a cached stylesheet cannot hide the polygons after data-driven redraws.
 function restoreMapAppearance() {
   const map = document.getElementById('map');
   if (!map) return;
@@ -110,7 +150,7 @@ function restoreMapAppearance() {
   });
   map.querySelectorAll('circle').forEach(circle => {
     circle.style.setProperty('display', 'inline', 'important');
-    circle.style.setProperty('fill', '#eb6557', 'important');
+    circle.style.setProperty('fill', circle.classList.contains('correct') ? '#2fa56f' : '#eb6557', 'important');
     circle.style.setProperty('stroke', '#f2f6f8', 'important');
     circle.style.setProperty('visibility', 'visible', 'important');
     circle.style.setProperty('opacity', '1', 'important');

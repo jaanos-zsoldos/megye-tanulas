@@ -34,13 +34,11 @@ body { overflow: hidden; }
    LAYOUT BRANCH (stacked AND side-by-side). Pill placement in app.js
    positions chips using left/top PERCENTAGES of the SVG's 1000x613
    viewBox, assuming the visible map fills .map-wrap edge-to-edge at
-   exactly that ratio. If .map-wrap's rendered box ever ends up at a
-   DIFFERENT ratio (e.g. because a flex container stretches its height
-   while a separate max-width also caps its width), the SVG's default
-   preserveAspectRatio letterboxes the actual map drawing inside the
-   mismatched box, shifting it away from where the percentage math
-   expects it - this is what caused pills to visually drift south/away
-   from their county at certain viewport sizes.
+   exactly that ratio. Any mismatch between the box's rendered ratio and
+   1000:613 makes the SVG's default preserveAspectRatio letterbox the
+   drawing inside the box, shifting it away from where the percentage math
+   expects it - the root cause of pills drifting away from their county at
+   certain viewport sizes.
    Using the standard `width: 100%; max-width: <cap>;` pattern (never
    mixing in an independent height/stretch constraint) guarantees the
    browser never needs to break the 1000:613 ratio to satisfy a competing
@@ -51,9 +49,9 @@ body { overflow: hidden; }
   min-width: 0;
   min-height: 0;
   aspect-ratio: 1000 / 613;
-  width: 100%;
+  width: auto;
   max-width: calc(56svh * 1000 / 613);
-  flex: 0 0 auto;
+  flex: 0 1 auto;
 }
 
 .zoom-layer {
@@ -120,20 +118,14 @@ body { overflow: hidden; }
 }
 
 /* Side-by-side desktop layout requires BOTH enough width AND a landscape
-   orientation, with a wide safety margin (1000px). CRITICAL: this branch
-   previously used `align-items: stretch` (inherited from .game-layout),
-   which stretches .map-wrap's HEIGHT along the row's cross-axis while a
-   separate max-width also capped its WIDTH - the same ratio-breaking
-   conflict fixed in the stacked layout, just re-introduced here. This
-   branch now explicitly overrides to `align-items: center` so .map-wrap
-   is never height-stretched; its box comes ONLY from max-width (a plain
-   width cap - safe, unlike the earlier min()/calc() unit-mixing bug) with
-   height purely derived via aspect-ratio, then centered in the row. */
+   orientation, with a wide safety margin (1000px). align-items:center
+   (overriding the base stretch) keeps .map-wrap from being height-stretched.
+   Its width remains `auto` (from the base rule) so flex-shrink can still
+   apply; only max-width changes here, to the space actually left over
+   after the tray and gap. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); align-items: center; }
   .map-wrap {
-    flex: 0 0 auto;
-    width: 100%;
     max-width: calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px));
   }
   .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); align-self: stretch; }

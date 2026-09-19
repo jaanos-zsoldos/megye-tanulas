@@ -4,12 +4,14 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const V_W = 1000;
 const V_H = 613;
 const MODES = {
-  'county-easy': { group: 'county', check: false, title: 'Megye tanulás – könnyített', badge: 'Megye · könnyített', text: 'Válassz egy megyenevet, majd kattints a térképen a megfelelő megyére.' },
-  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el a megyeneveket, majd ellenőrizd a válaszokat.' },
-  'seat-easy': { group: 'seat', check: false, showLabels: true, title: 'Megyeszékhely tanulás – könnyített', badge: 'Székhely · könnyített', text: 'Válassz egy megyeszékhelyet, majd kattints a megfelelő pontra.' },
-  'seat-medium': { group: 'seat', check: false, showLabels: false, title: 'Megyeszékhely tanulás – nehezített', badge: 'Székhely · nehezített', text: 'Válassz egy megyeszékhelyet, majd kattints a megfelelő pontra.' },
-  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'Helyezd el a megyeszékhelyeket, majd ellenőrizd a válaszokat.' }
+  'county-easy': { group: 'county', check: false, title: 'Megye tanulás – könnyített', badge: 'Megye · könnyített', text: 'Válassz ki egy megyét a listából, majd kattints a térképen a hozzá tartozó területre.' },
+  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el az összes megyenevet a térképen, majd az "Ellenőrzés" gombbal nézd meg, hány jó választ adtál. Minden ellenőrzés pontot von le, kivéve az utolsót, ha már minden helyes.' },
+  'seat-easy': { group: 'seat', check: false, showLabels: true, title: 'Megyeszékhely tanulás – könnyített', badge: 'Székhely · könnyített', text: 'A megyék nevei most láthatók a térképen. Válassz egy megyeszékhelyet, majd kattints a hozzá tartozó pontra.' },
+  'seat-medium': { group: 'seat', check: false, showLabels: false, title: 'Megyeszékhely tanulás – nehezített', badge: 'Székhely · nehezített', text: 'A megyék nevei most nem látszanak. Válassz egy megyeszékhelyet, majd kattints a térképen a megfelelő pontra.' },
+  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'A megyék nevei nem látszanak. Helyezd el az összes megyeszékhelyet, majd az "Ellenőrzés" gombbal ellenőrizd egyszerre a válaszaidat. Minden ellenőrzés pontot von le, kivéve az utolsót, ha már minden helyes.' }
 };
+
+const CHECK_PENALTY = 10;
 
 const el = Object.fromEntries([...document.querySelectorAll('[id]')].map(node => [node.id, node]));
 const state = { counties: [], mode: null, score: 0, selected: null, placements: new Set() };
@@ -20,6 +22,49 @@ function region(id) { return el.map.querySelector(`polygon[data-id="${esc(id)}"]
 function seat(id) { return el.map.querySelector(`circle[data-seat="${esc(id)}"]`); }
 function updateScore() { el.score.textContent = state.score; }
 function clearSelection() { state.selected?.classList.remove('selected'); state.selected = null; }
+
+const SEAT_DOT_CLEARANCE = 16;
+const CHIP_CLEARANCE = 26;
+const CHIP_SEARCH_RADIUS = 70;
+
+function allSeatPositions(excludeId) {
+  return state.counties
+    .filter(county => county.seat && county.seatPos && county.seat !== excludeId)
+    .map(county => county.seatPos);
+}
+
+function placedChipCenters(excludeChip) {
+  return [...el.zoomLayer.querySelectorAll('.chip.placed')]
+    .filter(chip => chip !== excludeChip)
+    .map(chip => [parseFloat(chip.style.left) / 100 * V_W, parseFloat(chip.style.top) / 100 * V_H])
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
+let audioCtx;
+function playTone(kind) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    oscillator.type = kind === 'correct' ? 'sine' : 'triangle';
+    if (kind === 'correct') {
+      oscillator.frequency.setValueAtTime(523.25, now);
+      oscillator.frequency.exponentialRampToValueAtTime(784, now + .12);
+    } else {
+      oscillator.frequency.setValueAtTime(196, now);
+      oscillator.frequency.exponentialRampToValueAtTime(110, now + .18);
+    }
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.15, now + .01);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'correct' ? .18 : .22));
+    oscillator.connect(gain).connect(audioCtx.destination);
+    oscillator.start(now);
+    oscillator.stop(now + (kind === 'correct' ? .2 : .24));
+  } catch {
+  }
+}
 
 function buildMap() {
   el.map.replaceChildren();
@@ -64,7 +109,14 @@ function addChip(text, id) {
   el.trayItems.appendChild(chip);
 }
 
+function evictPendingAt(targetId, excludeChip) {
+  const existing = [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')]
+    .find(chip => chip !== excludeChip && chip.pending === targetId);
+  if (existing) returnToTray(existing);
+}
+
 function placeTentative(chip, position, pending) {
+  evictPendingAt(pending, chip);
   chip.classList.remove('selected');
   chip.classList.add('placed');
   el.zoomLayer.appendChild(chip);
@@ -76,7 +128,11 @@ function lockCounty(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChip(chip, county.labelPos);
+  const avoid = placedChipCenters(chip);
+  const target = window.placementUtils
+    ? window.placementUtils.resolveChipPosition(county.labelPos, county, avoid, CHIP_CLEARANCE, CHIP_SEARCH_RADIUS)
+    : county.labelPos;
+  placeChip(chip, target);
   region(county.id)?.classList.add('correct');
   state.placements.add(county.id);
 }
@@ -85,7 +141,11 @@ function lockSeat(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChip(chip, county.seatPos);
+  const avoid = [...allSeatPositions(county.seat), ...placedChipCenters(chip)];
+  const target = window.placementUtils
+    ? window.placementUtils.resolveChipPosition(county.seatPos, county, avoid, SEAT_DOT_CLEARANCE, CHIP_SEARCH_RADIUS)
+    : county.seatPos;
+  placeChip(chip, target);
   seat(county.seat)?.classList.add('correct');
   state.placements.add(county.seat);
 }
@@ -100,8 +160,14 @@ function onRegionClick(county) {
   const mode = currentMode();
   const chip = state.selected;
   if (!chip || mode.group !== 'county') return;
-  if (!mode.check && chip.dataset.id !== county.id) return flash(region(county.id));
-  mode.check ? placeTentative(chip, county.labelPos, county.id) : (lockCounty(chip, county), state.score += 10);
+  if (!mode.check && chip.dataset.id !== county.id) { playTone('wrong'); return flash(region(county.id)); }
+  if (mode.check) {
+    placeTentative(chip, county.labelPos, county.id);
+  } else {
+    lockCounty(chip, county);
+    state.score += 10;
+    playTone('correct');
+  }
   state.selected = null;
   updateScore();
   complete();
@@ -111,8 +177,14 @@ function onSeatClick(county) {
   const mode = currentMode();
   const chip = state.selected;
   if (!chip || mode.group !== 'seat' || !county.seat) return;
-  if (!mode.check && chip.dataset.id !== county.seat) return flash(seat(county.seat));
-  mode.check ? placeTentative(chip, county.seatPos, county.seat) : (lockSeat(chip, county), state.score += 10);
+  if (!mode.check && chip.dataset.id !== county.seat) { playTone('wrong'); return flash(seat(county.seat)); }
+  if (mode.check) {
+    placeTentative(chip, county.seatPos, county.seat);
+  } else {
+    lockSeat(chip, county);
+    state.score += 10;
+    playTone('correct');
+  }
   state.selected = null;
   updateScore();
   complete();
@@ -125,7 +197,29 @@ function allCorrect() {
     : state.counties.filter(county => county.seat).every(county => state.placements.has(county.seat));
 }
 
-function complete() { if (allCorrect()) setTimeout(showMenu, 250); }
+const CELEBRATIONS = [
+  { min: 0, emoji: '🌱', text: 'Szép munka, ez egy jó kezdet! Gyakorolj tovább, és egyre magasabb pontszámot érhetsz el.' },
+  { min: 100, emoji: '👍', text: 'Ügyes vagy! Egyre jobban ismered Magyarország térképét.' },
+  { min: 180, emoji: '🎉', text: 'Kiváló eredmény! Már igazi térképmester vagy.' },
+  { min: 250, emoji: '🏆', text: 'Fantasztikus! Ez egy kimagasló, hibátlanhoz közeli teljesítmény.' }
+];
+
+function celebrationFor(score) {
+  return [...CELEBRATIONS].reverse().find(item => score >= item.min) || CELEBRATIONS[0];
+}
+
+function showFinalScore() {
+  const { emoji, text } = celebrationFor(state.score);
+  el.dialogTitle.textContent = `${emoji} Végső Pontszám: ${state.score} pont`;
+  el.dialogText.textContent = text;
+  el.overlay.classList.add('show');
+  el.next.onclick = () => {
+    el.overlay.classList.remove('show');
+    showMenu();
+  };
+}
+
+function complete() { if (allCorrect()) setTimeout(showFinalScore, 250); }
 
 function startMode(key) {
   const mode = MODES[key];
@@ -148,10 +242,13 @@ function startMode(key) {
   } else {
     state.counties.forEach(county => {
       region(county.id)?.classList.add('fixed');
-      if (mode.showLabels) {
+      if (mode.showLabels && county.id !== 'Budapest') {
+        const labelAt = window.placementUtils
+          ? window.placementUtils.resolveLabelPosition(county)
+          : county.labelPos;
         const label = document.createElementNS(SVG_NS, 'text');
-        label.setAttribute('x', county.labelPos[0]);
-        label.setAttribute('y', county.labelPos[1]);
+        label.setAttribute('x', labelAt[0]);
+        label.setAttribute('y', labelAt[1]);
         label.setAttribute('class', 'county-label');
         label.textContent = county.id;
         el.map.appendChild(label);
@@ -169,34 +266,68 @@ function startMode(key) {
     });
     state.counties.filter(county => county.seat).sort((a, b) => a.seat.localeCompare(b.seat, 'hu')).forEach(county => addChip(county.seat, county.seat));
   }
+
   el.menuScreen.hidden = true;
   el.gameScreen.hidden = false;
+  el.gameScreen.removeAttribute('aria-hidden');
+  el.restart.hidden = false;
+
+  requestAnimationFrame(() => {
+    window.fitMapToViewport?.();
+    window.resetZoom?.();
+  });
 }
 
 function showMenu() {
   clearSelection();
+  state.mode = null;
+  state.placements = new Set();
   el.overlay.classList.remove('show');
+
+  el.instructions.replaceChildren();
+  el.trayItems.replaceChildren();
+  el.zoomLayer.querySelectorAll('.chip').forEach(chip => chip.remove());
+  el.map.replaceChildren();
+  el.check.hidden = true;
+
   el.gameScreen.hidden = true;
+  el.gameScreen.setAttribute('aria-hidden', 'true');
   el.menuScreen.hidden = false;
+  el.restart.hidden = true;
   el.badge.textContent = '';
+
+  window.resetMapView?.();
 }
 
 el.check.addEventListener('click', () => {
+  let anyCorrect = false;
+  let anyWrong = false;
   [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')].forEach(chip => {
     if (chip.pending === chip.dataset.id) {
       const county = currentMode().group === 'county' ? state.counties.find(item => item.id === chip.dataset.id) : state.counties.find(item => item.seat === chip.dataset.id);
       currentMode().group === 'county' ? lockCounty(chip, county) : lockSeat(chip, county);
       state.score += 10;
-    } else returnToTray(chip);
+      anyCorrect = true;
+    } else {
+      returnToTray(chip);
+      anyWrong = true;
+    }
   });
+
+  const finished = allCorrect();
+  if (anyWrong && !finished) {
+    state.score = Math.max(0, state.score - CHECK_PENALTY);
+  }
+
+  if (anyCorrect) playTone('correct');
+  else if (anyWrong) playTone('wrong');
   updateScore();
   complete();
 });
 
 el.menuBtn.addEventListener('click', showMenu);
-el.restart.addEventListener('click', () => state.mode && startMode(state.mode));
+el.restart.addEventListener('click', () => { if (state.mode) startMode(state.mode); });
 
-// Delegate mode clicks from the menu so handlers remain reliable after any menu redraw.
 el.menuScreen.addEventListener('click', event => {
   const button = event.target.closest('[data-mode]');
   if (!button) return;
@@ -211,9 +342,12 @@ el.zoomLayer.addEventListener('click', event => {
   }
 });
 
+window.addEventListener('resize', () => { if (!el.gameScreen.hidden) window.fitMapToViewport?.(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { if (!el.gameScreen.hidden) window.fitMapToViewport?.(); }, 150));
+
 loadCounties().then(counties => {
   state.counties = counties;
   showMenu();
 }).catch(error => {
-  el.menuScreen.innerHTML = `<div class="menu-group"><h2>Hiba</h2><p>${error.message}</p></div>`;
+  el.menuScreen.innerHTML = `<div class="menu-group"><h2>Hiba történt</h2><p>${error.message}</p></div>`;
 });

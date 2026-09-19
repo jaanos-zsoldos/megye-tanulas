@@ -19,6 +19,17 @@ html, body { height: 100%; }
 
 #gameScreen[hidden] { display: none !important; }
 
+/* .menu-screen below has an explicit `display: flex` for layout, which
+   has the same CSS specificity as the browser's built-in `[hidden] {
+   display: none }` rule. Author stylesheet rules win ties over the
+   default UA stylesheet, so without this explicit override, setting the
+   hidden attribute on #menuScreen (done correctly by app.js when a mode
+   starts) stopped actually hiding it - the menu kept rendering above the
+   newly-shown game screen instead of disappearing. This mirrors the
+   #gameScreen[hidden] rule above so hidden always wins regardless of
+   .menu-screen's own display value. */
+#menuScreen[hidden] { display: none !important; }
+
 #gameScreen:not([hidden]) {
   height: calc(100dvh - var(--header-h, 4.5rem));
   min-height: 0;

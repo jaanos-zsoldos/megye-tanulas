@@ -21,6 +21,26 @@ function seat(id) { return el.map.querySelector(`circle[data-seat="${esc(id)}"]`
 function updateScore() { el.score.textContent = state.score; }
 function clearSelection() { state.selected?.classList.remove('selected'); state.selected = null; }
 
+// Pixel-space radii used by the collision search below. These correspond to
+// the SVG viewBox units (1000x613), not on-screen CSS pixels, so they scale
+// automatically with the map regardless of zoom or device size.
+const SEAT_DOT_CLEARANCE = 16;
+const CHIP_CLEARANCE = 26;
+const CHIP_SEARCH_RADIUS = 70;
+
+function allSeatPositions(excludeId) {
+  return state.counties
+    .filter(county => county.seat && county.seatPos && county.seat !== excludeId)
+    .map(county => county.seatPos);
+}
+
+function placedChipCenters(excludeChip) {
+  return [...el.zoomLayer.querySelectorAll('.chip.placed')]
+    .filter(chip => chip !== excludeChip)
+    .map(chip => [parseFloat(chip.style.left) / 100 * V_W, parseFloat(chip.style.top) / 100 * V_H])
+    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
 function buildMap() {
   el.map.replaceChildren();
   el.map.style.display = 'block';
@@ -72,20 +92,32 @@ function placeTentative(chip, position, pending) {
   chip.pending = pending;
 }
 
+// Fix (Megye tanulas): keep a placed county-name pill inside its own county
+// border and clear of every other placed pill.
 function lockCounty(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChip(chip, county.labelPos);
+  const avoid = placedChipCenters(chip);
+  const target = window.placementUtils
+    ? window.placementUtils.resolveChipPosition(county.labelPos, county, avoid, CHIP_CLEARANCE, CHIP_SEARCH_RADIUS)
+    : county.labelPos;
+  placeChip(chip, target);
   region(county.id)?.classList.add('correct');
   state.placements.add(county.id);
 }
 
+// Fix (Megyeszekhely tanulas): keep a placed seat-name pill close to its own
+// seat dot, but clear of every OTHER seat dot and every other placed pill.
 function lockSeat(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChip(chip, county.seatPos);
+  const avoid = [...allSeatPositions(county.seat), ...placedChipCenters(chip)];
+  const target = window.placementUtils
+    ? window.placementUtils.resolveChipPosition(county.seatPos, county, avoid, SEAT_DOT_CLEARANCE, CHIP_SEARCH_RADIUS)
+    : county.seatPos;
+  placeChip(chip, target);
   seat(county.seat)?.classList.add('correct');
   state.placements.add(county.seat);
 }
@@ -127,6 +159,21 @@ function allCorrect() {
 
 function complete() { if (allCorrect()) setTimeout(showMenu, 250); }
 
+// The check-mode reflow (Fix): re-place every locked chip with the same
+// collision-aware search so a batch of "correct" placements does not pile
+// on top of each other or on top of seat dots.
+function relockAllPlaced() {
+  const mode = currentMode();
+  const chips = [...el.zoomLayer.querySelectorAll('.chip.placed.locked')];
+  chips.forEach(chip => {
+    const county = mode.group === 'county'
+      ? state.counties.find(item => item.id === chip.dataset.id)
+      : state.counties.find(item => item.seat === chip.dataset.id);
+    if (!county) return;
+    if (mode.group === 'county') lockCounty(chip, county); else lockSeat(chip, county);
+  });
+}
+
 function startMode(key) {
   const mode = MODES[key];
   if (!mode || !state.counties.length) return;
@@ -149,9 +196,14 @@ function startMode(key) {
     state.counties.forEach(county => {
       region(county.id)?.classList.add('fixed');
       if (mode.showLabels) {
+        // Fix (Megyeszekhely tanulas - konnyitett): move the static county
+        // name away from its own seat dot when they would otherwise overlap.
+        const labelAt = window.placementUtils
+          ? window.placementUtils.resolveLabelPosition(county)
+          : county.labelPos;
         const label = document.createElementNS(SVG_NS, 'text');
-        label.setAttribute('x', county.labelPos[0]);
-        label.setAttribute('y', county.labelPos[1]);
+        label.setAttribute('x', labelAt[0]);
+        label.setAttribute('y', labelAt[1]);
         label.setAttribute('class', 'county-label');
         label.textContent = county.id;
         el.map.appendChild(label);

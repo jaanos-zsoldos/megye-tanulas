@@ -1,12 +1,15 @@
-/* Layout and interaction fixes kept separate from the game stylesheet. */
+/* Layout fixes kept separate from the game stylesheet.
+   IMPORTANT: .map-wrap's width and height are set directly in pixels by
+   viewport.js, not derived from CSS aspect-ratio/max-width/flex-shrink.
+   This file only decides LAYOUT DIRECTION (stacked column vs side-by-side
+   row) and lets JS own the map box's exact size, so there is never a
+   competing-constraint scenario that could make the box's rendered ratio
+   diverge from the SVG viewBox's 1000:613 ratio (the root cause of pills
+   drifting away from county borders, and of the map disappearing under
+   certain viewport combinations in earlier CSS-only attempts). */
 html, body { height: 100%; }
 body { overflow: hidden; }
 
-/* The `hidden` attribute must always win over the flex layout below.
-   Without this rule, the unconditional #gameScreen{display:flex} rule
-   further down had higher specificity than the [hidden] UA rule, so the
-   game screen (map, zoom controls, tray) stayed visible under the menu
-   even after JS set gameScreen.hidden = true. */
 #gameScreen[hidden] { display: none !important; }
 
 #gameScreen:not([hidden]) {
@@ -23,37 +26,19 @@ body { overflow: hidden; }
   height: auto;
   min-height: 0;
   overflow: hidden;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
   display: flex;
   flex-direction: column;
   gap: .5rem;
   max-width: 100%;
 }
 
-/* THE MAP BOX MUST ALWAYS BE WIDTH-DRIVEN, NEVER HEIGHT-DRIVEN.
-   Pill placement in app.js positions chips using left/top PERCENTAGES of
-   the SVG's 1000x613 viewBox, assuming the visible map fills .map-wrap
-   edge-to-edge at exactly that ratio. Any mismatch between the box's
-   rendered ratio and 1000:613 makes the SVG's default preserveAspectRatio
-   letterbox the drawing inside the box, shifting it away from where the
-   percentage math expects it.
-   BASE (stacked/column) rule: this is the ONLY layout branch where
-   .map-wrap has no sibling to shrink against on its own axis (the tray
-   sits BELOW it, not beside it), so `width: 100%` is always safe here and
-   gives the element a definite size to stretch into, with `max-width`
-   capping it and `aspect-ratio` deriving height. `width: auto` (with no
-   other width source) previously left the box without a definite size in
-   this branch, and because its only child (.zoom-layer) also uses
-   width:100%, that circular auto-vs-percentage dependency collapsed the
-   box in the stacked layout - this rule restores the safe default. */
+/* No aspect-ratio, no max-width/max-height, no flex-grow/shrink tricks.
+   width/height come ONLY from viewport.js as inline pixel values. */
 .map-wrap {
   position: relative;
   overflow: hidden;
-  min-width: 0;
-  min-height: 0;
-  aspect-ratio: 1000 / 613;
-  width: 100%;
-  max-width: calc(56svh * 1000 / 613);
   flex: 0 0 auto;
 }
 
@@ -91,8 +76,6 @@ body { overflow: hidden; }
 }
 #trayItems .chip { flex: 0 1 auto; max-width: 100%; }
 
-/* Compact, always-small zoom controls. There is intentionally no
-   percentage readout or large overlay element that could cover the map. */
 .zoom-controls { position: absolute; right: .5rem; bottom: .5rem; z-index: 5; display: flex; gap: .25rem; }
 .zoom-control { border: 0; border-radius: .5rem; background: #172631; color: #fff; min-width: 2.25rem; min-height: 2.25rem; font-weight: 700; box-shadow: 0 2px 8px #0008; }
 .zoom-control[hidden] { display: none; }
@@ -120,38 +103,21 @@ body { overflow: hidden; }
   50% { opacity: .05; }
 }
 
-/* Side-by-side desktop layout requires BOTH enough width AND a landscape
-   orientation, with a wide safety margin (1000px). UNLIKE the base rule,
-   .map-wrap here DOES have a sibling to shrink against (.tray sits beside
-   it), so it explicitly switches to `width: auto; flex: 0 1 auto;` -
-   sizing purely from max-width + aspect-ratio and allowing flex-shrink, so
-   it can never demand more space than is left after the tray and gap. */
+/* CSS decides ONLY the layout direction here - never the map box's size. */
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
-  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); align-items: center; }
-  .map-wrap {
-    width: auto;
-    max-width: calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px));
-    flex: 0 1 auto;
-  }
+  .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); }
   .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); align-self: stretch; }
 }
 
-/* Narrower phones get smaller text/pills and a shorter map cap; this also
-   now covers portrait tablets and any width below the safer 1000px
-   side-by-side threshold. */
 @media (max-width: 999px), (max-aspect-ratio: 1/1) {
   #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
-  .map-wrap { max-width: calc(50svh * 1000 / 613); }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }
   .chip.placed { max-width: 64px; font-size: clamp(.42rem, 1.6vw, .56rem); padding: .18rem .32rem; }
   .county-label { font-size: 14px; }
   .zoom-controls { right: .35rem; bottom: .35rem; }
 }
 
-/* Extra headroom on genuinely small phone widths, where both the map and
-   the tray need to shrink further to both stay visible without scrolling. */
 @media (max-width: 480px) {
-  .map-wrap { max-width: calc(42svh * 1000 / 613); }
   .chip { font-size: clamp(.5rem, 1.8vw, .64rem); padding: .26rem .42rem; }
 }
 
@@ -160,6 +126,5 @@ body { overflow: hidden; }
   .region.wrong, .seat-dot.wrong { animation: none; }
 }
 
-/* Final score ("Végső Pontszám") celebration dialog polish. */
 .dialog h2 { font-size: clamp(1.2rem, 4vw, 1.6rem); line-height: 1.3; }
 .dialog p { font-size: clamp(.9rem, 2.6vw, 1.05rem); line-height: 1.5; color: var(--muted); }

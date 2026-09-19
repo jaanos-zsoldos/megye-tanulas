@@ -46,11 +46,12 @@ body { overflow: hidden; }
 }
 #trayItems { overflow: auto; min-height: 0; flex: 1 1 auto; }
 
+/* Compact, always-small zoom controls. There is intentionally no
+   percentage readout or large overlay element that could cover the map. */
 .zoom-controls { position: absolute; right: .5rem; bottom: .5rem; z-index: 5; display: flex; gap: .25rem; }
-.zoom-control, .zoom-button { border: 0; border-radius: .5rem; background: #172631; color: #fff; min-width: 2.25rem; min-height: 2.25rem; font-weight: 700; box-shadow: 0 2px 8px #0008; }
-.zoom-button { position: absolute; left: .5rem; bottom: .5rem; z-index: 5; padding: .35rem .6rem; }
+.zoom-control { border: 0; border-radius: .5rem; background: #172631; color: #fff; min-width: 2.25rem; min-height: 2.25rem; font-weight: 700; box-shadow: 0 2px 8px #0008; }
 .zoom-control[hidden] { display: none; }
-.zoom-control:focus-visible, .zoom-button:focus-visible, .chip:focus-visible, .mode-button:focus-visible, button:focus-visible {
+.zoom-control:focus-visible, .chip:focus-visible, .mode-button:focus-visible, button:focus-visible {
   outline: 3px solid #ffd166;
   outline-offset: 2px;
 }

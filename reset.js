@@ -18,8 +18,6 @@ function resetMapView() {
   // Clear any inline height left over from a previous viewport fit so the
   // next fit always starts from the CSS baseline instead of compounding.
   if (gameScreen) gameScreen.style.removeProperty('height');
-  const zoomReset = document.getElementById('zoomReset');
-  if (zoomReset) zoomReset.hidden = true;
   document.querySelectorAll('.zoom-control').forEach(control => { control.hidden = true; });
   window.resetZoom?.();
   window.fitMapToViewport?.();

@@ -4,11 +4,11 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const V_W = 1000;
 const V_H = 613;
 const MODES = {
-  'county-easy': { group: 'county', check: false, title: 'Megye tanulás – könnyített', badge: 'Megye · könnyített', text: 'Válassz egy megyenevet, majd kattints a térképen a megfelelő megyére.' },
-  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el a megyeneveket, majd ellenőrizd a válaszokat.' },
-  'seat-easy': { group: 'seat', check: false, showLabels: true, title: 'Megyeszékhely tanulás – könnyített', badge: 'Székhely · könnyített', text: 'Válassz egy megyeszékhelyet, majd kattints a megfelelő pontra.' },
-  'seat-medium': { group: 'seat', check: false, showLabels: false, title: 'Megyeszékhely tanulás – nehezített', badge: 'Székhely · nehezített', text: 'Válassz egy megyeszékhelyet, majd kattints a megfelelő pontra.' },
-  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'Helyezd el a megyeszékhelyeket, majd ellenőrizd a válaszokat.' }
+  'county-easy': { group: 'county', check: false, title: 'Megye tanulás – könnyített', badge: 'Megye · könnyített', text: 'Válassz ki egy megyét a listából, majd kattints a térképen a hozzá tartozó területre.' },
+  'county-hard': { group: 'county', check: true, title: 'Megye tanulás – nehezített', badge: 'Megye · nehezített', text: 'Helyezd el az összes megyenevet a térképen, majd az "Ellenőrzés" gombbal nézd meg, hány jó választ adtál.' },
+  'seat-easy': { group: 'seat', check: false, showLabels: true, title: 'Megyeszékhely tanulás – könnyített', badge: 'Székhely · könnyített', text: 'A megyék nevei most láthatók a térképen. Válassz egy megyeszékhelyet, majd kattints a hozzá tartozó pontra.' },
+  'seat-medium': { group: 'seat', check: false, showLabels: false, title: 'Megyeszékhely tanulás – nehezített', badge: 'Székhely · nehezített', text: 'A megyék nevei most nem látszanak. Válassz egy megyeszékhelyet, majd kattints a térképen a megfelelő pontra.' },
+  'seat-extreme': { group: 'seat', check: true, showLabels: false, title: 'Megyeszékhely tanulás – extrém', badge: 'Székhely · extrém', text: 'A megyék nevei nem látszanak. Helyezd el az összes megyeszékhelyet, majd az "Ellenőrzés" gombbal ellenőrizd egyszerre a válaszaidat.' }
 };
 
 const el = Object.fromEntries([...document.querySelectorAll('[id]')].map(node => [node.id, node]));
@@ -21,9 +21,6 @@ function seat(id) { return el.map.querySelector(`circle[data-seat="${esc(id)}"]`
 function updateScore() { el.score.textContent = state.score; }
 function clearSelection() { state.selected?.classList.remove('selected'); state.selected = null; }
 
-// Pixel-space radii used by the collision search below. These correspond to
-// the SVG viewBox units (1000x613), not on-screen CSS pixels, so they scale
-// automatically with the map regardless of zoom or device size.
 const SEAT_DOT_CLEARANCE = 16;
 const CHIP_CLEARANCE = 26;
 const CHIP_SEARCH_RADIUS = 70;
@@ -39,6 +36,32 @@ function placedChipCenters(excludeChip) {
     .filter(chip => chip !== excludeChip)
     .map(chip => [parseFloat(chip.style.left) / 100 * V_W, parseFloat(chip.style.top) / 100 * V_H])
     .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
+let audioCtx;
+function playTone(kind) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    oscillator.type = kind === 'correct' ? 'sine' : 'triangle';
+    if (kind === 'correct') {
+      oscillator.frequency.setValueAtTime(523.25, now);
+      oscillator.frequency.exponentialRampToValueAtTime(784, now + .12);
+    } else {
+      oscillator.frequency.setValueAtTime(196, now);
+      oscillator.frequency.exponentialRampToValueAtTime(110, now + .18);
+    }
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(.15, now + .01);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + (kind === 'correct' ? .18 : .22));
+    oscillator.connect(gain).connect(audioCtx.destination);
+    oscillator.start(now);
+    oscillator.stop(now + (kind === 'correct' ? .2 : .24));
+  } catch {
+  }
 }
 
 function buildMap() {
@@ -92,8 +115,6 @@ function placeTentative(chip, position, pending) {
   chip.pending = pending;
 }
 
-// Fix (Megye tanulas): keep a placed county-name pill inside its own county
-// border and clear of every other placed pill.
 function lockCounty(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
@@ -107,8 +128,6 @@ function lockCounty(chip, county) {
   state.placements.add(county.id);
 }
 
-// Fix (Megyeszekhely tanulas): keep a placed seat-name pill close to its own
-// seat dot, but clear of every OTHER seat dot and every other placed pill.
 function lockSeat(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
@@ -132,8 +151,14 @@ function onRegionClick(county) {
   const mode = currentMode();
   const chip = state.selected;
   if (!chip || mode.group !== 'county') return;
-  if (!mode.check && chip.dataset.id !== county.id) return flash(region(county.id));
-  mode.check ? placeTentative(chip, county.labelPos, county.id) : (lockCounty(chip, county), state.score += 10);
+  if (!mode.check && chip.dataset.id !== county.id) { playTone('wrong'); return flash(region(county.id)); }
+  if (mode.check) {
+    placeTentative(chip, county.labelPos, county.id);
+  } else {
+    lockCounty(chip, county);
+    state.score += 10;
+    playTone('correct');
+  }
   state.selected = null;
   updateScore();
   complete();
@@ -143,8 +168,14 @@ function onSeatClick(county) {
   const mode = currentMode();
   const chip = state.selected;
   if (!chip || mode.group !== 'seat' || !county.seat) return;
-  if (!mode.check && chip.dataset.id !== county.seat) return flash(seat(county.seat));
-  mode.check ? placeTentative(chip, county.seatPos, county.seat) : (lockSeat(chip, county), state.score += 10);
+  if (!mode.check && chip.dataset.id !== county.seat) { playTone('wrong'); return flash(seat(county.seat)); }
+  if (mode.check) {
+    placeTentative(chip, county.seatPos, county.seat);
+  } else {
+    lockSeat(chip, county);
+    state.score += 10;
+    playTone('correct');
+  }
   state.selected = null;
   updateScore();
   complete();
@@ -158,21 +189,6 @@ function allCorrect() {
 }
 
 function complete() { if (allCorrect()) setTimeout(showMenu, 250); }
-
-// The check-mode reflow (Fix): re-place every locked chip with the same
-// collision-aware search so a batch of "correct" placements does not pile
-// on top of each other or on top of seat dots.
-function relockAllPlaced() {
-  const mode = currentMode();
-  const chips = [...el.zoomLayer.querySelectorAll('.chip.placed.locked')];
-  chips.forEach(chip => {
-    const county = mode.group === 'county'
-      ? state.counties.find(item => item.id === chip.dataset.id)
-      : state.counties.find(item => item.seat === chip.dataset.id);
-    if (!county) return;
-    if (mode.group === 'county') lockCounty(chip, county); else lockSeat(chip, county);
-  });
-}
 
 function startMode(key) {
   const mode = MODES[key];
@@ -196,8 +212,6 @@ function startMode(key) {
     state.counties.forEach(county => {
       region(county.id)?.classList.add('fixed');
       if (mode.showLabels) {
-        // Fix (Megyeszekhely tanulas - konnyitett): move the static county
-        // name away from its own seat dot when they would otherwise overlap.
         const labelAt = window.placementUtils
           ? window.placementUtils.resolveLabelPosition(county)
           : county.labelPos;
@@ -238,13 +252,21 @@ function showMenu() {
 }
 
 el.check.addEventListener('click', () => {
+  let anyCorrect = false;
+  let anyWrong = false;
   [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')].forEach(chip => {
     if (chip.pending === chip.dataset.id) {
       const county = currentMode().group === 'county' ? state.counties.find(item => item.id === chip.dataset.id) : state.counties.find(item => item.seat === chip.dataset.id);
       currentMode().group === 'county' ? lockCounty(chip, county) : lockSeat(chip, county);
       state.score += 10;
-    } else returnToTray(chip);
+      anyCorrect = true;
+    } else {
+      returnToTray(chip);
+      anyWrong = true;
+    }
   });
+  if (anyCorrect) playTone('correct');
+  else if (anyWrong) playTone('wrong');
   updateScore();
   complete();
 });
@@ -252,7 +274,6 @@ el.check.addEventListener('click', () => {
 el.menuBtn.addEventListener('click', showMenu);
 el.restart.addEventListener('click', () => state.mode && startMode(state.mode));
 
-// Delegate mode clicks from the menu so handlers remain reliable after any menu redraw.
 el.menuScreen.addEventListener('click', event => {
   const button = event.target.closest('[data-mode]');
   if (!button) return;
@@ -274,5 +295,5 @@ loadCounties().then(counties => {
   state.counties = counties;
   showMenu();
 }).catch(error => {
-  el.menuScreen.innerHTML = `<div class="menu-group"><h2>Hiba</h2><p>${error.message}</p></div>`;
+  el.menuScreen.innerHTML = `<div class="menu-group"><h2>Hiba történt</h2><p>${error.message}</p></div>`;
 });

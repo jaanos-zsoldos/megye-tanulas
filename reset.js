@@ -3,6 +3,7 @@
 function resetMapView() {
   const zoomLayer = document.getElementById('zoomLayer');
   const map = document.getElementById('map');
+  const gameScreen = document.getElementById('gameScreen');
   if (zoomLayer) {
     zoomLayer.querySelectorAll('.chip').forEach(chip => chip.remove());
     zoomLayer.style.setProperty('--zoom', '1');
@@ -14,6 +15,9 @@ function resetMapView() {
       node.classList.remove('correct', 'wrong', 'fixed');
     });
   }
+  // Clear any inline height left over from a previous viewport fit so the
+  // next fit always starts from the CSS baseline instead of compounding.
+  if (gameScreen) gameScreen.style.removeProperty('height');
   const zoomReset = document.getElementById('zoomReset');
   if (zoomReset) zoomReset.hidden = true;
   document.querySelectorAll('.zoom-control').forEach(control => { control.hidden = true; });

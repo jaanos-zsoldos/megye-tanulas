@@ -27,6 +27,7 @@ body { overflow: hidden; }
   display: flex;
   flex-direction: column;
   gap: .5rem;
+  max-width: 100%;
 }
 
 /* Default (stacked) map box: width-driven, height capped, ratio locked.
@@ -58,14 +59,27 @@ body { overflow: hidden; }
 
 .tray {
   min-height: 0;
+  min-width: 0;
   max-height: 100%;
   overflow: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   width: 100%;
 }
-#trayItems { overflow: auto; min-height: 0; flex: 1 1 auto; }
+#trayItems {
+  overflow: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+}
+#trayItems .chip { flex: 0 1 auto; max-width: 100%; }
 
 /* Compact, always-small zoom controls. There is intentionally no
    percentage readout or large overlay element that could cover the map. */
@@ -79,7 +93,7 @@ body { overflow: hidden; }
 
 .seat-dot { r: 14px; stroke-width: 2; touch-action: manipulation; cursor: pointer; }
 .region, .seat-dot, .chip { touch-action: manipulation; }
-.chip { user-select: none; -webkit-tap-highlight-color: transparent; }
+.chip { user-select: none; -webkit-tap-highlight-color: transparent; min-width: 0; }
 
 .chip { font-size: clamp(.5rem, 1.6vw, .665rem); padding: 4.9px 8.4px; color: #fff; }
 .chip.placed { max-width: 92px; line-height: 1.15; text-align: center; white-space: normal; }
@@ -96,21 +110,24 @@ body { overflow: hidden; }
   50% { opacity: .05; }
 }
 
-/* Side-by-side desktop layout only kicks in for viewports that are BOTH
-   wide enough AND landscape-oriented (wider than tall). This intentionally
-   excludes tall, narrow-ish tablets in portrait mode (e.g. iPad/Surface at
-   ~960-1100px wide but 1300px+ tall), which previously received this
-   layout purely from their raw width and ended up with a map box sized
-   from height that overflowed the row, pushing the pill tray out of view. */
-@media (min-width: 901px) and (min-aspect-ratio: 1/1) {
+/* Side-by-side desktop layout requires BOTH enough width AND a landscape
+   orientation, with a wide safety margin (1000px, not just barely over the
+   290px tray + a usable map). This prevents the "in-between" sizes where the
+   fixed breakpoint used to say "still side-by-side" while there was not
+   actually enough room, which clipped/overflowed the pill tray. The tray
+   itself is now a responsive clamp() width instead of a fixed 290px, so it
+   keeps shrinking gracefully as the viewport narrows toward the breakpoint
+   instead of hitting a hard wall right at the edge. */
+@media (min-width: 1000px) and (min-aspect-ratio: 1/1) {
   .game-layout { flex-direction: row; gap: clamp(8px, 2vw, 16px); }
-  .map-wrap { flex: 1 1 auto; min-width: 0; height: 100%; max-height: none; width: auto; max-width: calc(100% - 290px - clamp(8px, 2vw, 16px)); }
-  .tray { flex: 0 0 290px; max-height: 100%; width: 290px; }
+  .map-wrap { flex: 1 1 auto; min-width: 0; height: 100%; max-height: none; width: auto; max-width: calc(100% - clamp(220px, 24vw, 300px) - clamp(8px, 2vw, 16px)); }
+  .tray { flex: 0 0 clamp(220px, 24vw, 300px); max-height: 100%; width: clamp(220px, 24vw, 300px); }
 }
 
 /* Narrower phones get smaller text/pills and a shorter map cap; this also
-   now covers portrait tablets that fall through from the rule above. */
-@media (max-width: 700px), (max-aspect-ratio: 1/1) {
+   now covers portrait tablets and any width below the safer 1000px
+   side-by-side threshold. */
+@media (max-width: 999px), (max-aspect-ratio: 1/1) {
   #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
   .map-wrap { max-height: 50svh; }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }

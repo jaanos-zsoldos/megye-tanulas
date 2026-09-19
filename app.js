@@ -200,8 +200,7 @@ function allCorrect() {
 const CELEBRATIONS = [
   { min: 0, emoji: '🌱', text: 'Szép munka, ez egy jó kezdet! Gyakorolj tovább, és egyre magasabb pontszámot érhetsz el.' },
   { min: 100, emoji: '👍', text: 'Ügyes vagy! Egyre jobban ismered Magyarország térképét.' },
-  { min: 180, emoji: '🎉', text: 'Kiváló eredmény! Már igazi térképmester vagy.' },
-  { min: 250, emoji: '🏆', text: 'Fantasztikus! Ez egy kimagasló, hibátlanhoz közeli teljesítmény.' }
+  { min: 180, emoji: '🎉', text: 'Kiváló eredmény! Már igazi térképmester vagy.' }
 ];
 
 function celebrationFor(score) {
@@ -315,7 +314,7 @@ el.check.addEventListener('click', () => {
   });
 
   const finished = allCorrect();
-  if (anyWrong && !finished) {
+  if (!finished) {
     state.score = Math.max(0, state.score - CHECK_PENALTY);
   }
 

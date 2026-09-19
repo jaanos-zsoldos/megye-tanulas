@@ -1,47 +1,49 @@
 const style = document.createElement('style');
 style.textContent = `
-  /* Fit the complete game workspace into the browser viewport on desktop too. */
   html, body { height: 100%; }
   body { overflow: hidden; }
-  #gameScreen {
-    height: calc(100dvh - 4.5rem);
-    min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-  #gameScreen .instructions { flex: 0 0 auto; }
-  .game-layout {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: 0;
-    overflow: hidden;
-    align-items: center;
-  }
-  .map-wrap {
-    width: min(100%, calc((100dvh - 12.5rem) * 1.6313));
-    height: min(100%, calc(100dvh - 12.5rem));
-    aspect-ratio: 1000 / 613;
-    min-width: 0;
-    min-height: 0;
-  }
-  .zoom-layer, .map { width: 100%; height: 100%; }
-  .tray { min-height: 0; max-height: 100%; overflow: auto; }
 
-  /* On narrow screens, reserve space for both the whole map and the pill tray. */
-  @media (max-width: 700px) {
-    #gameScreen { height: calc(100dvh - 8rem); }
-    .game-layout {
-      height: auto;
-      gap: .5rem;
+  /* Desktop-only viewport fitting. Keep the mobile layout independent: it was
+     already sized correctly before the desktop no-scroll change. */
+  @media (min-width: 701px) {
+    #gameScreen {
+      height: calc(100dvh - 4.5rem);
+      min-height: 0;
       overflow: hidden;
-      align-items: stretch;
+      display: flex;
+      flex-direction: column;
+    }
+    #gameScreen .instructions { flex: 0 0 auto; }
+    .game-layout {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 0;
+      overflow: hidden;
+      align-items: center;
     }
     .map-wrap {
+      width: min(100%, calc((100dvh - 12.5rem) * 1.6313));
+      height: min(100%, calc(100dvh - 12.5rem));
+      aspect-ratio: 1000 / 613;
+      min-width: 0;
+      min-height: 0;
+    }
+    .zoom-layer, .map { width: 100%; height: 100%; }
+    .tray { min-height: 0; max-height: 100%; overflow: auto; }
+  }
+
+  /* Preserve the mobile layout that worked before desktop viewport fitting was
+     introduced. Mobile browsers can change dynamic viewport units while the
+     address bar expands, so use the stable small viewport here. */
+  @media (max-width: 700px) {
+    #gameScreen { height: calc(100svh - 8rem); }
+    .game-layout { height: 100%; gap: .5rem; }
+    .map-wrap {
       width: 100%;
-      height: min(56dvh, calc(100vw * .613));
+      height: min(56svh, calc(100vw * .613));
       flex: 0 0 auto;
     }
+    .zoom-layer, .map { width: 100%; height: 100%; }
     .tray { flex: 1 1 auto; width: 100%; overflow: auto; }
   }
 

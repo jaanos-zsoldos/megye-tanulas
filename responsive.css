@@ -39,10 +39,12 @@ body { overflow: hidden; }
    drawing inside the box, shifting it away from where the percentage math
    expects it - the root cause of pills drifting away from their county at
    certain viewport sizes.
-   Using the standard `width: 100%; max-width: <cap>;` pattern (never
-   mixing in an independent height/stretch constraint) guarantees the
-   browser never needs to break the 1000:613 ratio to satisfy a competing
-   dimension, in EITHER layout branch. */
+   `width: auto` (NOT 100%) lets this flex item size itself intrinsically
+   from aspect-ratio + max-width, instead of starting from an oversized
+   100%-wide flex-basis. flex-shrink is enabled (flex: 0 1 auto) so the box
+   can shrink to fit alongside the tray in the row layout - flex-shrink:0
+   combined with a 100% width flex-basis was what made the row overflow and
+   caused the map to disappear entirely at wide/landscape sizes. */
 .map-wrap {
   position: relative;
   overflow: hidden;

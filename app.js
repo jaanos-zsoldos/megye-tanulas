@@ -52,8 +52,8 @@ function addChip(text, id) {
   chip.className = 'chip';
   chip.textContent = text;
   chip.dataset.id = id;
-  chip.dataId = id;
   chip.addEventListener('click', event => {
+    event.preventDefault();
     event.stopPropagation();
     if (chip.classList.contains('locked')) return;
     if (state.selected === chip) return clearSelection();
@@ -62,7 +62,6 @@ function addChip(text, id) {
     chip.classList.add('selected');
   });
   el.trayItems.appendChild(chip);
-  return chip;
 }
 
 function placeTentative(chip, position, pending) {
@@ -73,17 +72,11 @@ function placeTentative(chip, position, pending) {
   chip.pending = pending;
 }
 
-function placeChip(chip, position) { placeChipAt(chip, position); }
-function placeChipAt(chip, position) {
-  chip.style.left = `${position[0] / V_W * 100}%`;
-  chip.style.top = `${position[1] / V_H * 100}%`;
-}
-
 function lockCounty(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChipAt(chip, county.labelPos);
+  placeChip(chip, county.labelPos);
   region(county.id)?.classList.add('correct');
   state.placements.add(county.id);
 }
@@ -92,7 +85,7 @@ function lockSeat(chip, county) {
   chip.classList.remove('selected');
   chip.classList.add('placed', 'locked');
   el.zoomLayer.appendChild(chip);
-  placeChipAt(chip, county.seatPos);
+  placeChip(chip, county.seatPos);
   seat(county.seat)?.classList.add('correct');
   state.placements.add(county.seat);
 }
@@ -108,12 +101,7 @@ function onRegionClick(county) {
   const chip = state.selected;
   if (!chip || mode.group !== 'county') return;
   if (!mode.check && chip.dataset.id !== county.id) return flash(region(county.id));
-  if (mode.check) {
-    placeTentative(chip, county.labelPos, county.id);
-  } else {
-    lockCounty(chip, county);
-    state.score += 10;
-  }
+  mode.check ? placeTentative(chip, county.labelPos, county.id) : (lockCounty(chip, county), state.score += 10);
   state.selected = null;
   updateScore();
   complete();
@@ -124,12 +112,7 @@ function onSeatClick(county) {
   const chip = state.selected;
   if (!chip || mode.group !== 'seat' || !county.seat) return;
   if (!mode.check && chip.dataset.id !== county.seat) return flash(seat(county.seat));
-  if (mode.check) {
-    placeTentative(chip, county.seatPos, county.seat);
-  } else {
-    lockSeat(chip, county);
-    state.score += 10;
-  }
+  mode.check ? placeTentative(chip, county.seatPos, county.seat) : (lockSeat(chip, county), state.score += 10);
   state.selected = null;
   updateScore();
   complete();
@@ -142,20 +125,20 @@ function allCorrect() {
     : state.counties.filter(county => county.seat).every(county => state.placements.has(county.seat));
 }
 
-function complete() {
-  if (allCorrect()) setTimeout(() => showMenu(), 250);
-}
+function complete() { if (allCorrect()) setTimeout(showMenu, 250); }
 
 function startMode(key) {
+  const mode = MODES[key];
+  if (!mode || !state.counties.length) return;
   state.mode = key;
   state.score = 0;
   state.selected = null;
   state.placements = new Set();
   updateScore();
   el.trayItems.replaceChildren();
-  el.zoomLayer.replaceChildren(el.map);
   buildMap();
-  const mode = currentMode();
+  const map = el.map;
+  if (!el.zoomLayer.contains(map)) el.zoomLayer.appendChild(map);
   el.instructions.innerHTML = `<b>${mode.title}</b><br>${mode.text}`;
   el.badge.textContent = mode.badge;
   el.check.hidden = !mode.check;
@@ -201,9 +184,7 @@ function showMenu() {
 el.check.addEventListener('click', () => {
   [...el.zoomLayer.querySelectorAll('.chip.placed:not(.locked)')].forEach(chip => {
     if (chip.pending === chip.dataset.id) {
-      const county = currentMode().group === 'county'
-        ? state.counties.find(item => item.id === chip.dataset.id)
-        : state.counties.find(item => item.seat === chip.dataset.id);
+      const county = currentMode().group === 'county' ? state.counties.find(item => item.id === chip.dataset.id) : state.counties.find(item => item.seat === chip.dataset.id);
       currentMode().group === 'county' ? lockCounty(chip, county) : lockSeat(chip, county);
       state.score += 10;
     } else returnToTray(chip);
@@ -214,7 +195,15 @@ el.check.addEventListener('click', () => {
 
 el.menuBtn.addEventListener('click', showMenu);
 el.restart.addEventListener('click', () => state.mode && startMode(state.mode));
-document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => startMode(button.dataset.mode)));
+
+// Delegate mode clicks from the menu so handlers remain reliable after any menu redraw.
+el.menuScreen.addEventListener('click', event => {
+  const button = event.target.closest('[data-mode]');
+  if (!button) return;
+  event.preventDefault();
+  startMode(button.dataset.mode);
+});
+
 el.zoomLayer.addEventListener('click', event => {
   if (event.target === el.zoomLayer || event.target === el.map) {
     if (state.selected?.classList.contains('placed')) returnToTray(state.selected);

@@ -54,6 +54,22 @@ function overlaps(a, b) {
     && first.top < second.bottom && first.bottom > second.top;
 }
 
+function stackBudapestAndPest(budapest, pest) {
+  const layer = document.getElementById('zoomLayer');
+  const bounds = layer.getBoundingClientRect();
+  const budapestRect = budapest.getBoundingClientRect();
+  const pestRect = pest.getBoundingClientRect();
+
+  // Keep Pest directly below Budapest instead of pushing it into a neighbouring county.
+  const dx = budapestRect.left + (budapestRect.width - pestRect.width) / 2 - pestRect.left;
+  const gap = 4;
+  const spaceBelow = bounds.bottom - budapestRect.bottom;
+  const dy = spaceBelow >= pestRect.height + gap
+    ? budapestRect.bottom + gap - pestRect.top
+    : budapestRect.top - gap - pestRect.bottom;
+  moveChip(pest, dx, dy);
+}
+
 function separatePlacedChips() {
   const chips = [...document.querySelectorAll('#zoomLayer .chip.placed')];
   // Resolve only small local collisions, so labels stay next to their county/town.
@@ -79,13 +95,12 @@ function separatePlacedChips() {
     if (!changed) break;
   }
 
-  // Budapest and Pest are especially close; prefer the smallest horizontal offset.
+  // Budapest and Pest are especially close; stack them vertically to avoid
+  // moving Pest across the neighbouring county on the right.
   const budapest = chips.find(chip => chipText(chip) === 'budapest');
   const pest = chips.find(chip => chipText(chip) === 'pest');
   if (budapest && pest && overlaps(budapest, pest)) {
-    const a = budapest.getBoundingClientRect();
-    const b = pest.getBoundingClientRect();
-    moveChip(pest, b.left < a.left ? -(b.right - a.left + 4) : a.right - b.left + 4, 0);
+    stackBudapestAndPest(budapest, pest);
   }
 }
 

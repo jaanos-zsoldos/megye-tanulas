@@ -8,7 +8,14 @@
    drifting away from county borders, and of the map disappearing under
    certain viewport combinations in earlier CSS-only attempts). */
 html, body { height: 100%; }
-body { overflow: hidden; }
+
+/* NOTE: body no longer forces overflow:hidden globally. That rule used to
+   clip the menu screen's content whenever it was taller than the viewport
+   (e.g. more menu-groups than fit on a laptop screen), with no way to
+   scroll down to reach the rest of the menu. #gameScreen already manages
+   its own fixed height + overflow + internal scrollable tray on its own,
+   so the body never actually needed to be non-scrollable - only the game
+   screen did, and it already handles that itself. */
 
 #gameScreen[hidden] { display: none !important; }
 
@@ -103,6 +110,26 @@ body { overflow: hidden; }
   50% { opacity: .05; }
 }
 
+/* Menu screen: was previously unstyled and relied entirely on default
+   block flow plus body's clipped overflow, which is what caused it to be
+   cut off with no way to scroll. It now scrolls on its own if content
+   ever exceeds the viewport, and gets sensible spacing/max-width so it
+   doesn't stretch edge-to-edge on wide desktop screens. */
+.menu-screen {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+  max-height: calc(100dvh - var(--header-h, 4.5rem));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+.menu-group { display: flex; flex-direction: column; gap: .6rem; }
+.menu-group h2 { margin: 0 0 .25rem; font-size: clamp(1rem, 2.4vw, 1.2rem); }
+
 /* CSS decides ONLY the layout direction here - never the map box's size.
    Pure min-width breakpoint: the switch depends only on whether there is
    enough WIDTH for map+tray side by side, not on viewport height. The
@@ -117,6 +144,7 @@ body { overflow: hidden; }
 
 @media (max-width: 759px) {
   #gameScreen:not([hidden]) { height: calc(100svh - var(--header-h, 8rem)); gap: .5rem; }
+  .menu-screen { padding: 1rem .75rem 2rem; gap: 1rem; max-height: calc(100svh - var(--header-h, 8rem)); }
   .chip { font-size: clamp(.55rem, 2vw, .72rem); padding: .3rem .5rem; }
   .chip.placed { max-width: 64px; font-size: clamp(.42rem, 1.6vw, .56rem); padding: .18rem .32rem; }
   .county-label { font-size: 14px; }

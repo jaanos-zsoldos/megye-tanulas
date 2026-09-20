@@ -280,7 +280,9 @@ function startMode(key) {
 function showMenu() {
   clearSelection();
   state.mode = null;
+  state.score = 0;
   state.placements = new Set();
+  updateScore();
   el.overlay.classList.remove('show');
 
   el.instructions.replaceChildren();

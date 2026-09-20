@@ -22,6 +22,10 @@ function resetMapView() {
   if (mapWrap) {
     mapWrap.style.removeProperty('width');
     mapWrap.style.removeProperty('height');
+    mapWrap.style.removeProperty('min-width');
+    mapWrap.style.removeProperty('min-height');
+    mapWrap.style.removeProperty('max-width');
+    mapWrap.style.removeProperty('max-height');
     mapWrap.style.removeProperty('flex');
     mapWrap.style.removeProperty('align-self');
   }

@@ -33,8 +33,24 @@
     // Step 1: let the box grow to fill whatever space flexbox actually
     // gives it, with no fixed size yet, so we can measure the TRUE
     // available area directly rather than recompute it from siblings.
+    // Also strip any min/max width or height that a stray CSS rule (now or
+    // in the future) might set on #mapWrap - a leftover pre-viewport.js
+    // rule once set `min-height: 42vh` under a narrow-viewport media query,
+    // which silently overrode the exact pixel height computed below
+    // (CSS min-height always wins over a conflicting inline height) and
+    // stretched the box taller than the 1000:613 ratio. Because placed
+    // pills are positioned with left/top PERCENTAGES of this same box,
+    // that mismatch visually shifted every pill "south" of its intended
+    // spot even though the SVG map itself still rendered at the correct
+    // ratio inside the stretched box. Clearing these here means this
+    // module - the single owner of #mapWrap's size - can never again be
+    // silently overruled by an unrelated stylesheet rule.
     mapWrap.style.width = '';
     mapWrap.style.height = '';
+    mapWrap.style.minWidth = '0';
+    mapWrap.style.minHeight = '0';
+    mapWrap.style.maxWidth = 'none';
+    mapWrap.style.maxHeight = 'none';
     mapWrap.style.flex = '1 1 auto';
     mapWrap.style.alignSelf = 'stretch';
 
